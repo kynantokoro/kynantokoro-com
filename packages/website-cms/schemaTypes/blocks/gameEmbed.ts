@@ -8,11 +8,12 @@ export default defineType({
   icon: PlayIcon,
   fields: [
     defineField({
-      name: 'embedUrl',
-      type: 'url',
-      title: 'Embed URL',
-      description: 'URL for the embedded game (e.g., /games/week-01/index.html)',
+      name: 'gameSlug',
+      type: 'string',
+      title: 'Game Slug',
+      description: 'Name of the game project (e.g., "roguelike", "week1-game")',
       validation: (Rule) => Rule.required(),
+      placeholder: 'roguelike',
     }),
     defineField({
       name: 'title',
@@ -39,12 +40,12 @@ export default defineType({
   preview: {
     select: {
       title: 'title',
-      url: 'embedUrl',
+      slug: 'gameSlug',
     },
-    prepare({title, url}) {
+    prepare({title, slug}) {
       return {
         title: title || 'Game Embed',
-        subtitle: url,
+        subtitle: slug ? `/projects/${slug}/` : 'No game selected',
         media: PlayIcon,
       }
     },

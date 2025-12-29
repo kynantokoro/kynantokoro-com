@@ -3,20 +3,24 @@ import GameEmbed from '../GameEmbed';
 type GameEmbedBlockProps = {
   value: {
     _key: string;
-    embedUrl: string;
+    gameSlug: string;
     title?: string;
     aspectRatio?: string;
   };
 };
 
 export default function GameEmbedBlock({ value }: GameEmbedBlockProps) {
-  if (!value.embedUrl) return null;
+  if (!value.gameSlug) return null;
+
+  // Construct the full URL from the game slug
+  const gameUrl = `/projects/${value.gameSlug}/`;
 
   return (
     <div className="my-8">
       <GameEmbed
-        src={value.embedUrl}
+        src={gameUrl}
         title={value.title || 'Game'}
+        aspectRatio={value.aspectRatio}
       />
     </div>
   );
