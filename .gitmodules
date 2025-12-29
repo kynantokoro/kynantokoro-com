@@ -1,0 +1,3 @@
+[submodule "packages/projects"]
+	path = packages/projects
+	url = https://github.com/kynantokoro/kynantokoro-com-projects.git

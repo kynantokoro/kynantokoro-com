@@ -12,6 +12,8 @@ importers:
         specifier: ^4.19.2
         version: 4.21.0
 
+  packages/projects/roguelike: {}
+
   packages/website:
     dependencies:
       '@anthropic-ai/sdk':
@@ -22,7 +24,7 @@ importers:
         version: 6.0.0(react@19.2.3)
       '@sanity/client':
         specifier: ^7.13.0
-        version: 7.13.2
+        version: 7.13.2(debug@4.4.3)
       '@sanity/image-url':
         specifier: ^1.2.0
         version: 1.2.0
@@ -50,7 +52,7 @@ importers:
         version: 1.19.0(vite@7.3.0(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))(workerd@1.20251217.0)(wrangler@4.56.0)
       '@portabletext/block-tools':
         specifier: ^5.0.0
-        version: 5.0.0(@types/react@19.2.7)
+        version: 5.0.0(@types/react@19.2.7)(debug@4.4.3)
       '@react-router/dev':
         specifier: ^7.9.6
         version: 7.11.0(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.30.2)(react-router@7.11.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(tsx@4.21.0)(typescript@5.9.3)(vite@7.3.0(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))(wrangler@4.56.0)(yaml@2.8.2)
@@ -7408,7 +7410,7 @@ snapshots:
       '@babel/types': 7.28.5
       '@jridgewell/remapping': 2.3.5
       convert-source-map: 2.0.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       gensync: 1.0.0-beta.2
       json5: 2.2.3
       semver: 6.3.1
@@ -8124,7 +8126,7 @@ snapshots:
       '@babel/parser': 7.28.5
       '@babel/template': 7.27.2
       '@babel/types': 7.28.5
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -9381,16 +9383,6 @@ snapshots:
 
   '@poppinss/exception@1.2.3': {}
 
-  '@portabletext/block-tools@5.0.0(@types/react@19.2.7)':
-    dependencies:
-      '@portabletext/sanity-bridge': 2.0.0(@types/react@19.2.7)
-      '@portabletext/schema': 2.1.1
-      '@sanity/types': 5.1.0(@types/react@19.2.7)
-    transitivePeerDependencies:
-      - '@types/react'
-      - debug
-      - supports-color
-
   '@portabletext/block-tools@5.0.0(@types/react@19.2.7)(debug@4.4.3)':
     dependencies:
       '@portabletext/sanity-bridge': 2.0.0(@types/react@19.2.7)(debug@4.4.3)
@@ -9483,16 +9475,6 @@ snapshots:
       '@portabletext/toolkit': 5.0.0
       '@portabletext/types': 4.0.0
       react: 19.2.3
-
-  '@portabletext/sanity-bridge@2.0.0(@types/react@19.2.7)':
-    dependencies:
-      '@portabletext/schema': 2.1.1
-      '@sanity/schema': 5.1.0(@types/react@19.2.7)
-      '@sanity/types': 5.1.0(@types/react@19.2.7)
-    transitivePeerDependencies:
-      - '@types/react'
-      - debug
-      - supports-color
 
   '@portabletext/sanity-bridge@2.0.0(@types/react@19.2.7)(debug@4.4.3)':
     dependencies:
@@ -10792,16 +10774,7 @@ snapshots:
   '@sanity/client@6.29.1':
     dependencies:
       '@sanity/eventsource': 5.0.2
-      get-it: 8.7.0
-      rxjs: 7.8.2
-    transitivePeerDependencies:
-      - debug
-
-  '@sanity/client@7.13.2':
-    dependencies:
-      '@sanity/eventsource': 5.0.2
-      get-it: 8.7.0
-      nanoid: 3.3.11
+      get-it: 8.7.0(debug@4.4.3)
       rxjs: 7.8.2
     transitivePeerDependencies:
       - debug
@@ -11114,22 +11087,6 @@ snapshots:
       - utf-8-validate
       - yaml
 
-  '@sanity/schema@5.1.0(@types/react@19.2.7)':
-    dependencies:
-      '@sanity/descriptors': 1.3.0
-      '@sanity/generate-help-url': 3.0.1
-      '@sanity/types': 5.1.0(@types/react@19.2.7)
-      arrify: 2.0.1
-      groq-js: 1.24.0
-      humanize-list: 1.0.1
-      leven: 3.1.0
-      lodash-es: 4.17.22
-      object-inspect: 1.13.4
-    transitivePeerDependencies:
-      - '@types/react'
-      - debug
-      - supports-color
-
   '@sanity/schema@5.1.0(@types/react@19.2.7)(debug@4.4.3)':
     dependencies:
       '@sanity/descriptors': 1.3.0
@@ -11205,14 +11162,6 @@ snapshots:
   '@sanity/types@4.22.0(@types/react@19.2.7)(debug@4.4.3)':
     dependencies:
       '@sanity/client': 7.13.2(debug@4.4.3)
-      '@sanity/media-library-types': 1.0.2
-      '@types/react': 19.2.7
-    transitivePeerDependencies:
-      - debug
-
-  '@sanity/types@5.1.0(@types/react@19.2.7)':
-    dependencies:
-      '@sanity/client': 7.13.2
       '@sanity/media-library-types': 1.0.2
       '@types/react': 19.2.7
     transitivePeerDependencies:
@@ -12239,10 +12188,6 @@ snapshots:
 
   debounce@1.2.1: {}
 
-  debug@4.4.3:
-    dependencies:
-      ms: 2.1.3
-
   debug@4.4.3(supports-color@8.1.1):
     dependencies:
       ms: 2.1.3
@@ -12847,8 +12792,6 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  follow-redirects@1.15.11: {}
-
   follow-redirects@1.15.11(debug@4.4.3):
     optionalDependencies:
       debug: 4.4.3(supports-color@8.1.1)
@@ -12920,17 +12863,6 @@ snapshots:
       has-symbols: 1.1.0
       hasown: 2.0.2
       math-intrinsics: 1.1.0
-
-  get-it@8.7.0:
-    dependencies:
-      '@types/follow-redirects': 1.14.4
-      decompress-response: 7.0.0
-      follow-redirects: 1.15.11
-      is-retry-allowed: 2.2.0
-      through2: 4.0.2
-      tunnel-agent: 0.6.0
-    transitivePeerDependencies:
-      - debug
 
   get-it@8.7.0(debug@4.4.3):
     dependencies:
@@ -13041,7 +12973,7 @@ snapshots:
 
   groq-js@1.24.0:
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -13127,14 +13059,14 @@ snapshots:
   http-proxy-agent@7.0.2:
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
   https-proxy-agent@7.0.6:
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -15442,7 +15374,7 @@ snapshots:
   vite-node@3.2.4(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2):
     dependencies:
       cac: 6.7.14
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       es-module-lexer: 1.7.0
       pathe: 2.0.3
       vite: 7.3.0(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)
@@ -15462,7 +15394,7 @@ snapshots:
 
   vite-tsconfig-paths@5.1.4(typescript@5.9.3)(vite@7.3.0(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       globrex: 0.1.2
       tsconfck: 3.1.6(typescript@5.9.3)
     optionalDependencies:
