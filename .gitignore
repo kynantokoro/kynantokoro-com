@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.react-router/
+
+# Cloudflare
+.wrangler/
+worker-configuration.d.ts
+wrangler.toml
+
+# Environment variables and secrets
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# AI
+.claude/
+
+# TypeScript
+*.tsbuildinfo
+
+# Temporary files
+*.tmp
+.cache/
+
+# Projects (managed as git submodule)
+# Note: packages/projects/ is a private submodule
+# Build outputs are excluded - use CI/CD or local build
+packages/website/public/projects/

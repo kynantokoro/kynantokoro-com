@@ -1,0 +1,42 @@
+{
+  "name": "website-cms",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Sanity Studio for kynantokoro.com content management",
+  "main": "package.json",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "sanity dev",
+    "start": "sanity start",
+    "build": "sanity build",
+    "deploy": "sanity deploy",
+    "deploy-graphql": "sanity graphql deploy"
+  },
+  "keywords": [
+    "sanity"
+  ],
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@sanity/icons": "^3.7.4",
+    "@sanity/locale-ja-jp": "^1.1.28",
+    "@sanity/ui": "^3.1.11",
+    "@sanity/vision": "^5.1.0",
+    "react": "^19.1",
+    "react-dom": "^19.1",
+    "sanity": "^5.1.0",
+    "styled-components": "^6.1.18"
+  },
+  "devDependencies": {
+    "@sanity/eslint-config-studio": "^5.0.2",
+    "@types/react": "^19.1",
+    "eslint": "^9.28",
+    "prettier": "^3.5",
+    "typescript": "^5.8"
+  },
+  "prettier": {
+    "semi": false,
+    "printWidth": 100,
+    "bracketSpacing": false,
+    "singleQuote": true
+  }
+}

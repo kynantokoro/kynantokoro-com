@@ -1,0 +1,4 @@
+packages:
+  - 'packages/website'
+  - 'packages/website-cms'
+  - 'packages/projects/*'

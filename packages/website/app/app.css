@@ -1,0 +1,112 @@
+@import "tailwindcss" source(".");
+@plugin "@tailwindcss/typography";
+
+@variant dark (&:where(.dark, .dark *));
+
+/* Custom Fonts */
+@font-face {
+  font-family: 'BigBlue TerminalPlus';
+  src: url('/fonts/BigBlue_TerminalPlus.TTF') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'PixelMplus12';
+  src: url('/fonts/PixelMplus12-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "BigBlue TerminalPlus", "PixelMplus12", ui-monospace, monospace;
+  --font-serif: "BigBlue TerminalPlus", "PixelMplus12", ui-monospace, monospace;
+
+  /* Pixel-perfect font sizes (12px base, multiples only) */
+  --font-size-xs: 12px;    /* 1x */
+  --font-size-sm: 12px;    /* 1x */
+  --font-size-base: 12px;  /* 1x */
+  --font-size-lg: 24px;    /* 2x */
+  --font-size-xl: 24px;    /* 2x */
+  --font-size-2xl: 24px;   /* 2x */
+  --font-size-3xl: 36px;   /* 3x */
+  --font-size-4xl: 48px;   /* 4x */
+  --font-size-5xl: 60px;   /* 5x */
+  --font-size-6xl: 72px;   /* 6x */
+
+  /* Pixel-art style border radius (jagged circles) */
+  --radius-sm: 2px;
+  --radius: 4px;
+  --radius-md: 4px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-2xl: 8px;
+  --radius-3xl: 8px;
+  --radius-full: 8px;  /* Not truly circular, but pixelated */
+}
+
+html,
+body {
+  @apply bg-white text-gray-900;
+  color-scheme: light;
+
+  /* Smooth, readable font rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+html.dark,
+html.dark body {
+  @apply bg-gray-900 text-gray-100;
+  color-scheme: dark;
+}
+
+/* Focus-visible styles: yellow background like gov.uk for high visibility */
+.focus-invert:focus-visible {
+  @apply outline-none bg-yellow-400 text-gray-900;
+  outline: 3px solid #1d1d1d;
+  outline-offset: 0;
+}
+
+/* Show menu text when focused, even if normally hidden */
+.group.focus-invert:focus-visible .menu-text-toggle {
+  opacity: 1 !important;
+}
+
+/* Hide elements that should only show when scrolled, until hydration completes */
+.header-hydrating .hide-until-hydrated {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.header-hydrating * {
+  transition: none !important;
+}
+
+/* Remove default focus outline globally, rely on custom styles */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: none;
+}
+
+/* View Transitions API - cross-fade animation */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 300ms;
+  animation-timing-function: ease-in-out;
+}
+
+/* Portable Text block content default styles */
+.portable-text p {
+  @apply mb-4;
+}
+
+.portable-text p:last-child {
+  @apply mb-0;
+}

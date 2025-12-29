@@ -1,0 +1,46 @@
+{
+	"name": "website",
+	"private": true,
+	"description": "kynantokoro.com website - React Router 7 + Cloudflare Workers",
+	"type": "module",
+	"scripts": {
+		"build": "react-router build",
+		"cf-typegen": "wrangler types",
+		"deploy": "pnpm run build && wrangler deploy",
+		"dev": "react-router dev",
+		"postinstall": "npm run cf-typegen",
+		"preview": "pnpm run build && vite preview",
+		"typecheck": "npm run cf-typegen && react-router typegen && tsc -b"
+	},
+	"dependencies": {
+		"@anthropic-ai/sdk": "^0.71.2",
+		"@portabletext/react": "^6.0.0",
+		"@sanity/client": "^7.13.0",
+		"@sanity/image-url": "^1.2.0",
+		"isbot": "^5.1.32",
+		"react": "^19.2.0",
+		"react-aria": "^3.44.0",
+		"react-aria-components": "^1.14.0",
+		"react-dom": "^19.2.0",
+		"react-router": "^7.9.6"
+	},
+	"devDependencies": {
+		"@cloudflare/vite-plugin": "^1.15.2",
+		"@portabletext/block-tools": "^5.0.0",
+		"@react-router/dev": "^7.9.6",
+		"@sanity/block-tools": "^3.70.0",
+		"@tailwindcss/typography": "^0.5.19",
+		"@tailwindcss/vite": "^4.1.17",
+		"@types/node": "^22.19.1",
+		"@types/react": "^19.2.6",
+		"@types/react-dom": "^19.2.3",
+		"jsdom": "^27.4.0",
+		"sharp": "^0.34.5",
+		"tailwindcss": "^4.1.17",
+		"typescript": "^5.9.3",
+		"vite": "^7.2.4",
+		"vite-tsconfig-paths": "^5.1.4",
+		"wrangler": "^4.50.0"
+	},
+	"packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0"
+}

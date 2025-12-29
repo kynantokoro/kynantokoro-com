@@ -1,0 +1,18 @@
+{
+	"name": "kynantokoro-com",
+	"version": "1.0.0",
+	"private": true,
+	"description": "Personal website and blog for kynantokoro.com",
+	"scripts": {
+		"dev": "pnpm --filter website dev",
+		"dev:projects": "pnpm --filter projects dev",
+		"build:projects": "pnpm --filter './packages/projects/**' build",
+		"build": "pnpm build:projects && pnpm --filter website build",
+		"deploy": "pnpm build && pnpm --filter website deploy",
+		"typecheck": "pnpm -r typecheck"
+	},
+	"devDependencies": {
+		"tsx": "^4.19.2"
+	},
+	"packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0"
+}
