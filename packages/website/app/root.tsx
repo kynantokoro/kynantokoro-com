@@ -6,7 +6,9 @@ import {
   Scripts,
   ScrollRestoration,
   useRouteLoaderData,
+  useFetcher,
 } from "react-router";
+import { useEffect, useRef } from "react";
 
 import type { Route } from "./+types/root";
 import "./app.css";
@@ -35,9 +37,36 @@ export const links: Route.LinksFunction = () => [
   { rel: "manifest", href: "/site.webmanifest" },
 ];
 
-export function Layout({ children }: { children: React.ReactNode }) {
+function ThemeSync() {
   const data = useRouteLoaderData<typeof loader>("root");
   const theme = data?.theme || 'system';
+  const resolvedTheme = data?.resolvedTheme || 'light';
+  const fetcher = useFetcher();
+  const hasChecked = useRef(false);
+
+  useEffect(() => {
+    // Only check once on mount
+    if (hasChecked.current || theme !== 'system') return;
+    hasChecked.current = true;
+
+    // Check if actual system preference matches server's resolved theme
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const expectedTheme = prefersDark ? 'dark' : 'light';
+
+    // If there's a mismatch, update the server
+    if (expectedTheme !== resolvedTheme) {
+      const formData = new FormData();
+      formData.append('theme', 'system');
+      formData.append('prefersDark', String(prefersDark));
+      fetcher.submit(formData, { method: 'post', action: '/api/theme' });
+    }
+  }, [theme, resolvedTheme, fetcher]);
+
+  return null;
+}
+
+export function Layout({ children }: { children: React.ReactNode }) {
+  const data = useRouteLoaderData<typeof loader>("root");
   const resolvedTheme = data?.resolvedTheme || 'light';
 
   return (
@@ -50,6 +79,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
+        <ThemeSync />
         {children}
         <ScrollRestoration />
         <Scripts />

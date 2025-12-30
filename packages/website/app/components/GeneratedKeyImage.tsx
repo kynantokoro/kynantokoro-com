@@ -1,3 +1,5 @@
+import { useRouteLoaderData } from 'react-router';
+
 // Seeded random generator (決定的な乱数生成)
 function seededRandom(seed: number, index: number): number {
   const x = Math.sin(seed * 12.9898 + index * 78.233) * 43758.5453;
@@ -92,6 +94,13 @@ interface GeneratedKeyImageProps {
 
 export default function GeneratedKeyImage({ seed, className = "", containerSize = 128 }: GeneratedKeyImageProps) {
   const params = generateImageParams(seed, containerSize);
+  const rootData = useRouteLoaderData('root') as { resolvedTheme: 'light' | 'dark' } | undefined;
+  const isDark = rootData?.resolvedTheme === 'dark';
+
+  // Build filter: hue-rotate + invert (only in light mode, like profile GIF)
+  const filter = isDark
+    ? `hue-rotate(${params.hue}deg)`
+    : `hue-rotate(${params.hue}deg) invert(100%)`;
 
   return (
     <div className={`relative overflow-hidden ${className}`}>
@@ -103,7 +112,7 @@ export default function GeneratedKeyImage({ seed, className = "", containerSize 
           height: `${params.height}px`,
           maxWidth: 'none',
           transform: `translate(${params.posX}px, ${params.posY}px) rotate(${params.rotation}deg)`,
-          filter: `hue-rotate(${params.hue}deg)`,
+          filter,
           imageRendering: 'pixelated',
         }}
       />
