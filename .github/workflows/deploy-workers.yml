@@ -1,0 +1,91 @@
+name: Deploy to Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-docker-emscripten-3.1.51
+          restore-keys: |
+            ${{ runner.os }}-docker-emscripten-
+
+      - name: Pull Emscripten Docker image
+        run: docker pull emscripten/emsdk:3.1.51
+
+      - name: Cache project hashes manifest
+        uses: actions/cache@v4
+        with:
+          path: .github/scripts/project-hashes.json
+          key: ${{ runner.os }}-project-manifest-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-project-manifest-
+
+      - name: Cache project build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            packages/projects/*/build
+            packages/website/public/projects
+          key: ${{ runner.os }}-project-outputs-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-project-outputs-
+
+      - name: Build projects (incremental)
+        run: |
+          chmod +x .github/scripts/build-projects.sh
+          .github/scripts/build-projects.sh
+
+      - name: Build website
+        run: pnpm --filter website build
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: packages/website

@@ -49,3 +49,4 @@ Thumbs.db
 # Note: packages/projects/ is a private submodule
 # Build outputs are excluded - use CI/CD or local build
 packages/website/public/projects/
+.github/scripts/project-hashes.json
