@@ -31,7 +31,8 @@
     "@types/react": "^19.1",
     "eslint": "^9.28",
     "prettier": "^3.5",
-    "typescript": "^5.8"
+    "typescript": "^5.8",
+    "wrangler": "^4.50.0"
   },
   "prettier": {
     "semi": false,
