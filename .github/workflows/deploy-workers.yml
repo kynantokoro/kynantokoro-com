@@ -53,19 +53,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Cache Docker layers
+      - name: Cache Emscripten Docker image
+        id: cache-emscripten
         uses: actions/cache@v4
         with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-docker-emscripten-3.1.51
-          restore-keys: |
-            ${{ runner.os }}-docker-emscripten-
+          path: /tmp/emscripten-docker-image.tar
+          key: ${{ runner.os }}-emscripten-3.1.51
+
+      - name: Load cached Docker image
+        if: steps.cache-emscripten.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/emscripten-docker-image.tar
 
       - name: Pull Emscripten Docker image
-        run: docker pull emscripten/emsdk:3.1.51
+        if: steps.cache-emscripten.outputs.cache-hit != 'true'
+        run: |
+          docker pull emscripten/emsdk:3.1.51
+          docker save emscripten/emsdk:3.1.51 -o /tmp/emscripten-docker-image.tar
 
       - name: Cache project hashes manifest
         uses: actions/cache@v4
