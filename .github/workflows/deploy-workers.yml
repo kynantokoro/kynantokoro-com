@@ -85,9 +85,17 @@ jobs:
       - name: Build website
         run: pnpm --filter website build
 
-      - name: Deploy to Cloudflare Workers
+      - name: Deploy production worker (kynantokoro.com)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: packages/website
+
+      - name: Deploy draft worker (draft.kynantokoro.com)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: packages/website
+          command: deploy --name draft-kynantokoro-com
