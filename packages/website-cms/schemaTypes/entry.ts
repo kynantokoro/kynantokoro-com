@@ -1,5 +1,6 @@
 import {defineField, defineType, defineArrayMember} from 'sanity'
 import {EmojiNumberInput} from '../components/EmojiNumberInput'
+import {ImageSeedInput} from '../components/ImageSeedInput'
 
 export default defineType({
   name: 'entry',
@@ -64,6 +65,17 @@ export default defineType({
       initialValue: 1,
       components: {
         input: EmojiNumberInput,
+      },
+    }),
+    defineField({
+      name: 'imageSeed',
+      type: 'number',
+      title: 'Key Image Seed',
+      description: 'Seed for generating key image from DSANIM frames (0-9999)',
+      validation: (Rule) => Rule.min(0).max(9999).integer(),
+      initialValue: () => Math.floor(Math.random() * 10000),
+      components: {
+        input: ImageSeedInput,
       },
     }),
     defineField({

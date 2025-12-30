@@ -6,6 +6,7 @@ import { createSanityClient, queries, type SanityEnv } from '../lib/sanity';
 import { getEmojiColor } from '../lib/emojiColors';
 import { PortableText } from '@portabletext/react';
 import { createPortableTextComponents } from '../components/portable-text/portableTextComponents';
+import GeneratedKeyImage from '../components/GeneratedKeyImage';
 
 export function meta({ params, data }: Route.MetaArgs) {
   const title = data?.entry?.metadata?.title?.en;
@@ -48,6 +49,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
       date: sanityEntry.date,
       tags: sanityEntry.tags || [],
       emoji: sanityEntry.emoji || 1,
+      imageSeed: sanityEntry.imageSeed ?? 0,
       enIsTranslated: sanityEntry.enIsTranslated || false,
       jaIsTranslated: sanityEntry.jaIsTranslated || false,
     },
@@ -79,22 +81,13 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
       <Header showBackButton />
 
       <div className="max-w-3xl mx-auto px-8 pb-24">
-        {/* Emoji display with backdrop */}
+        {/* Generated key image */}
         <div className="mb-8 flex justify-center">
-          <div
-            className="inline-flex items-center justify-center rounded-2xl p-6"
-            style={{
-              backgroundColor: `${getEmojiColor(entry.metadata.emoji || 1)}20`,
-              border: `2px solid ${getEmojiColor(entry.metadata.emoji || 1)}40`
-            }}
-          >
-            <img
-              src={`/emojis/Emojis_32x32_${entry.metadata.emoji || 1}.png`}
-              alt=""
-              className="w-24 h-24"
-              style={{ imageRendering: 'pixelated' }}
-            />
-          </div>
+          <GeneratedKeyImage
+            seed={entry.metadata.imageSeed}
+            className="w-32 h-32 rounded-2xl"
+            containerSize={128}
+          />
         </div>
 
         {/* Header */}

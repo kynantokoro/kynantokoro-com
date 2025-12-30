@@ -46,6 +46,7 @@ export async function loader({ context }: Route.LoaderArgs) {
       date: entry.date,
       tags: entry.tags || [],
       emoji: entry.emoji || 1,
+      imageSeed: entry.imageSeed ?? 0,
       week: entry.week,
     },
     type: entry.entryType,
@@ -65,6 +66,7 @@ type Entry = {
     date: string;
     tags: string[];
     emoji: number;
+    imageSeed: number;
     week?: number;
   };
   type: 'weekly-project' | 'blog';
@@ -159,6 +161,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                   title={entry.metadata.title}
                   date={entry.metadata.date}
                   emoji={entry.metadata.emoji}
+                  imageSeed={entry.metadata.imageSeed}
                   tags={entry.metadata.tags || []}
                   contentType={entry.type}
                 />

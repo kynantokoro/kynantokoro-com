@@ -1,6 +1,7 @@
 import { Link, useSearchParams } from 'react-router';
 import { useLanguage } from '../contexts/language-context';
 import { getEmojiColor } from '../lib/emojiColors';
+import GeneratedKeyImage from './GeneratedKeyImage';
 
 interface EntryCardProps {
   slug: string;
@@ -11,11 +12,12 @@ interface EntryCardProps {
   };
   date: string;
   emoji?: number;
+  imageSeed?: number;
   tags: string[];
   contentType: 'weekly-project' | 'blog';
 }
 
-export default function EntryCard({ slug, week, title, date, emoji, tags, contentType }: EntryCardProps) {
+export default function EntryCard({ slug, week, title, date, emoji, imageSeed, tags, contentType }: EntryCardProps) {
   const { language } = useLanguage();
   const [searchParams] = useSearchParams();
 
@@ -39,21 +41,12 @@ export default function EntryCard({ slug, week, title, date, emoji, tags, conten
       className="focus-invert group block py-4 border-b border-gray-200 dark:border-gray-700"
     >
       <div className="flex items-center gap-4">
-        {/* Emoji on LEFT side with backdrop */}
-        <div
-          className="flex-shrink-0 w-16 h-16 flex items-center justify-center rounded-lg p-2"
-          style={{
-            backgroundColor: `${emojiColor}20`, // 20% opacity
-            border: `1px solid ${emojiColor}40` // 40% opacity border
-          }}
-        >
-          <img
-            src={`/emojis/Emojis_32x32_${emoji || 1}.png`}
-            alt=""
-            className="w-full h-full"
-            style={{ imageRendering: 'pixelated' }}
-          />
-        </div>
+        {/* Generated key image on LEFT side */}
+        <GeneratedKeyImage
+          seed={imageSeed ?? 0}
+          className="flex-shrink-0 w-20 h-20 rounded-lg"
+          containerSize={80}
+        />
 
         {/* Content on RIGHT side */}
         <div className="flex-1 min-w-0">
