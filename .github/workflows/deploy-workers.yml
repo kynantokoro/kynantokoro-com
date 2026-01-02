@@ -102,6 +102,10 @@ jobs:
 
       - name: Build CMS
         run: pnpm --filter website-cms build
+        env:
+          SANITY_STUDIO_PROJECT_ID: ${{ vars.SANITY_STUDIO_PROJECT_ID }}
+          SANITY_STUDIO_DATASET: ${{ vars.SANITY_STUDIO_DATASET }}
+          SANITY_STUDIO_TRANSLATION_API_URL: ${{ vars.SANITY_STUDIO_TRANSLATION_API_URL }}
 
       - name: Deploy CMS to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
