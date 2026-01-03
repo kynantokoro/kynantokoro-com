@@ -99,13 +99,14 @@ export default function GeneratedKeyImage({ seed, className = "", containerSize 
       <img
         src={`/dsanim-frames/frame_${params.frame.toString().padStart(2, '0')}.png`}
         alt=""
-        className="invert dark:invert-0"
+        className="light-mode-invert"
         style={{
           width: `${params.width.toFixed(2)}px`,
           height: `${params.height.toFixed(2)}px`,
           maxWidth: 'none',
           transform: `translate(${params.posX.toFixed(2)}px, ${params.posY.toFixed(2)}px) rotate(${params.rotation}deg)`,
-          filter: `hue-rotate(${params.hue}deg)`,
+          // @ts-ignore - CSS variable for hue rotation
+          '--hue-rotate': `${params.hue}deg`,
           imageRendering: 'pixelated',
         }}
       />

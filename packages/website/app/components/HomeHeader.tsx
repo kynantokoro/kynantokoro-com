@@ -29,10 +29,11 @@ export default function HomeHeader({ hueRotate }: HomeHeaderProps) {
             <img
               src="/DSANIM1.gif"
               alt={currentProfile.name}
-              className="w-full h-full object-cover invert dark:invert-0"
+              className="w-full h-full object-cover light-mode-invert"
               style={{
                 imageRendering: 'pixelated',
-                filter: `hue-rotate(${hueRotate}deg)`,
+                // @ts-ignore - CSS variable for hue rotation
+                '--hue-rotate': `${hueRotate}deg`,
               }}
             />
           </div>
