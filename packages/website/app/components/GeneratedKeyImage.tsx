@@ -108,10 +108,10 @@ export default function GeneratedKeyImage({ seed, className = "", containerSize 
         src={`/dsanim-frames/frame_${params.frame.toString().padStart(2, '0')}.png`}
         alt=""
         style={{
-          width: `${params.width}px`,
-          height: `${params.height}px`,
+          width: `${params.width.toFixed(2)}px`,
+          height: `${params.height.toFixed(2)}px`,
           maxWidth: 'none',
-          transform: `translate(${params.posX}px, ${params.posY}px) rotate(${params.rotation}deg)`,
+          transform: `translate(${params.posX.toFixed(2)}px, ${params.posY.toFixed(2)}px) rotate(${params.rotation}deg)`,
           filter,
           imageRendering: 'pixelated',
         }}

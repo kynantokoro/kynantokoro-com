@@ -1,7 +1,8 @@
-import { Link, useSearchParams } from 'react-router';
+import { Link, useSearchParams, useRouteLoaderData } from 'react-router';
 import { useLanguage } from '../contexts/language-context';
 import { getEmojiColor } from '../lib/emojiColors';
 import GeneratedKeyImage from './GeneratedKeyImage';
+import type { loader as languageLayoutLoader } from '../routes/language-layout';
 
 interface EntryCardProps {
   slug: string;
@@ -20,6 +21,8 @@ interface EntryCardProps {
 export default function EntryCard({ slug, week, title, date, emoji, imageSeed, tags, contentType }: EntryCardProps) {
   const { language } = useLanguage();
   const [searchParams] = useSearchParams();
+  const languageLayoutData = useRouteLoaderData<typeof languageLayoutLoader>('routes/language-layout');
+  const isMobileUA = languageLayoutData?.isMobileUA ?? false;
 
   const displayTitle = title[language as keyof typeof title] ||
                         title[language === 'en' ? 'ja' : 'en'];
@@ -37,7 +40,8 @@ export default function EntryCard({ slug, week, title, date, emoji, imageSeed, t
   return (
     <Link
       to={linkWithParams}
-      viewTransition
+      viewTransition={!isMobileUA}
+      prefetch={isMobileUA ? "viewport" : "intent"}
       className="focus-invert group block py-4 border-b border-gray-200 dark:border-gray-700"
     >
       <div className="flex items-center gap-4">

@@ -81,7 +81,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <body>
         <ThemeSync />
         {children}
-        <ScrollRestoration />
+        <ScrollRestoration
+          getKey={(location) => {
+            // Only restore scroll position for home pages (/en, /ja)
+            if (location.pathname.match(/^\/(en|ja)$/)) {
+              return location.pathname;
+            }
+            // For all other pages (like blog entries), always reset to top
+            return location.key;
+          }}
+        />
         <Scripts />
       </body>
     </html>

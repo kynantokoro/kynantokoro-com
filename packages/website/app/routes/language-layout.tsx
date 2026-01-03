@@ -1,8 +1,7 @@
-import { Outlet, useNavigate, useParams } from "react-router";
+import { Outlet, useNavigate, useParams, redirect } from "react-router";
 import type { Route } from "./+types/language-layout";
 import { LanguageProvider } from "../contexts/language-context";
 import { isValidLanguage, type Language } from "../lib/i18n";
-import { useEffect } from "react";
 
 export function meta({ params }: Route.MetaArgs) {
   const lang = params.lang;
@@ -11,22 +10,26 @@ export function meta({ params }: Route.MetaArgs) {
   ];
 }
 
+export async function loader({ params, request }: Route.LoaderArgs) {
+  const lang = params.lang;
+
+  // Validate language parameter on the server
+  if (!lang || !isValidLanguage(lang)) {
+    throw redirect('/en');
+  }
+
+  // Detect mobile device from User-Agent
+  const userAgent = request.headers.get('User-Agent') || '';
+  const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+
+  return { isMobileUA };
+}
+
 export default function LanguageLayout() {
   const params = useParams();
   const navigate = useNavigate();
-  
-  const lang = params.lang;
-  
-  // Validate language parameter
-  useEffect(() => {
-    if (!lang || !isValidLanguage(lang)) {
-      navigate('/en', { replace: true });
-    }
-  }, [lang, navigate]);
-  
-  if (!lang || !isValidLanguage(lang)) {
-    return null; // Will redirect in useEffect
-  }
+
+  const lang = params.lang as Language;
   
   const handleLanguageChange = (newLang: Language) => {
     // Store preference in cookie

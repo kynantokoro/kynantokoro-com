@@ -1,8 +1,6 @@
 import type { Route } from "./+types/entry.$slug";
 import { Link } from "react-router";
-import { useEffect } from "react";
 import { useLanguage } from "../contexts/language-context";
-import { useFooterMargin } from "../contexts/footer-margin-context";
 import Header from "../components/Header";
 import { createSanityClient, queries, type SanityEnv } from '../lib/sanity';
 import { getEmojiColor } from '../lib/emojiColors';
@@ -63,16 +61,18 @@ export async function loader({ params, context }: Route.LoaderArgs) {
   return { entry, projectId, dataset };
 }
 
+// Cache-Control headers are required for Link prefetch to work properly
+// Without this, prefetched data is not reused on navigation
+// See: https://github.com/remix-run/react-router/issues/13255
+export function headers() {
+  return {
+    "Cache-Control": "public, max-age=60, stale-while-revalidate=3600",
+  };
+}
+
 export default function EntryPage({ loaderData }: Route.ComponentProps) {
   const { language } = useLanguage();
   const { entry, projectId, dataset } = loaderData;
-  const { setHasBottomMargin } = useFooterMargin();
-
-  // Set footer bottom margin on mount, clear on unmount
-  useEffect(() => {
-    setHasBottomMargin(true);
-    return () => setHasBottomMargin(false);
-  }, [setHasBottomMargin]);
 
   const displayTitle = entry.metadata.title?.[language as keyof typeof entry.metadata.title] ||
                         entry.metadata.title?.[language === 'en' ? 'ja' : 'en'] ||

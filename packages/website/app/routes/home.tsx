@@ -54,7 +54,19 @@ export async function loader({ context }: Route.LoaderArgs) {
     hasJa: entry.hasJa,
   }));
 
-  return { entries };
+  // Generate random hue on each page load (server-side to avoid hydration mismatch)
+  const profileHue = Math.floor(Math.random() * 360);
+
+  return { entries, profileHue };
+}
+
+// Cache-Control headers are required for Link prefetch to work properly
+// Without this, prefetched data is not reused on navigation
+// See: https://github.com/remix-run/react-router/issues/13255
+export function headers() {
+  return {
+    "Cache-Control": "public, max-age=60, stale-while-revalidate=3600",
+  };
 }
 
 type Filter = 'all' | 'weekly-project' | 'blog';
@@ -76,13 +88,10 @@ type Entry = {
 
 export default function Home({ loaderData }: Route.ComponentProps) {
   const { language } = useLanguage();
-  const { entries } = loaderData;
+  const { entries, profileHue } = loaderData;
   const rootData = useRouteLoaderData<typeof rootLoader>("root");
   const resolvedTheme = rootData?.resolvedTheme || 'light';
   const [searchParams, setSearchParams] = useSearchParams();
-
-  // Generate random hue once on mount (persists across filter changes)
-  const [profileHue] = useState(() => Math.floor(Math.random() * 360));
 
   // Get filter from URL, default to 'all'
   const filterFromUrl = searchParams.get('filter') as Filter | null;
