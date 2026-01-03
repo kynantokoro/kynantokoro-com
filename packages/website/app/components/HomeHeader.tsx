@@ -2,10 +2,9 @@ import { useLanguage } from '../contexts/language-context';
 
 interface HomeHeaderProps {
   hueRotate: number;
-  isDark: boolean;
 }
 
-export default function HomeHeader({ hueRotate, isDark }: HomeHeaderProps) {
+export default function HomeHeader({ hueRotate }: HomeHeaderProps) {
   const { language } = useLanguage();
 
   const profile = {
@@ -21,11 +20,6 @@ export default function HomeHeader({ hueRotate, isDark }: HomeHeaderProps) {
 
   const currentProfile = profile[language as keyof typeof profile];
 
-  // Build filter: hue-rotate + invert (only in light mode)
-  const filters = isDark
-    ? `hue-rotate(${hueRotate}deg)`
-    : `hue-rotate(${hueRotate}deg) invert(100%)`;
-
   return (
     <section className="max-w-4xl mx-auto px-8 pb-16">
       <div className="flex flex-col sm:flex-row gap-6 sm:items-start">
@@ -35,8 +29,11 @@ export default function HomeHeader({ hueRotate, isDark }: HomeHeaderProps) {
             <img
               src="/DSANIM1.gif"
               alt={currentProfile.name}
-              className="w-full h-full object-cover"
-              style={{ imageRendering: 'pixelated', filter: filters }}
+              className="w-full h-full object-cover invert dark:invert-0"
+              style={{
+                imageRendering: 'pixelated',
+                filter: `hue-rotate(${hueRotate}deg)`,
+              }}
             />
           </div>
         </div>

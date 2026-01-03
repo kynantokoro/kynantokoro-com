@@ -13,20 +13,7 @@ import { useEffect, useRef } from "react";
 import type { Route } from "./+types/root";
 import "./app.css";
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const cookieHeader = request.headers.get("Cookie") || "";
-
-  const themeCookie = cookieHeader.split(';').find(c => c.trim().startsWith('theme='));
-  const theme = themeCookie ? themeCookie.split('=')[1] as 'light' | 'dark' | 'system' : 'system';
-
-  const prefersDarkCookie = cookieHeader.split(';').find(c => c.trim().startsWith('prefersDark='));
-  const prefersDark = prefersDarkCookie ? prefersDarkCookie.split('=')[1] === 'true' : false;
-
-  // Resolve the actual theme to apply
-  const resolvedTheme = theme === 'system' ? (prefersDark ? 'dark' : 'light') : theme;
-
-  return { theme, resolvedTheme };
-}
+// No loader needed - theme is managed client-side with localStorage
 
 export const links: Route.LinksFunction = () => [
   // Favicon
@@ -37,44 +24,50 @@ export const links: Route.LinksFunction = () => [
   { rel: "manifest", href: "/site.webmanifest" },
 ];
 
+// Listen for system theme changes when using 'system' mode
 function ThemeSync() {
-  const data = useRouteLoaderData<typeof loader>("root");
-  const theme = data?.theme || 'system';
-  const resolvedTheme = data?.resolvedTheme || 'light';
-  const fetcher = useFetcher();
-  const hasChecked = useRef(false);
-
   useEffect(() => {
-    // Only check once on mount
-    if (hasChecked.current || theme !== 'system') return;
-    hasChecked.current = true;
+    const theme = localStorage.getItem('theme') || 'system';
+    if (theme !== 'system') return;
 
-    // Check if actual system preference matches server's resolved theme
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const expectedTheme = prefersDark ? 'dark' : 'light';
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => {
+      const prefersDark = mediaQuery.matches;
+      document.documentElement.classList.toggle('dark', prefersDark);
+    };
 
-    // If there's a mismatch, update the server
-    if (expectedTheme !== resolvedTheme) {
-      const formData = new FormData();
-      formData.append('theme', 'system');
-      formData.append('prefersDark', String(prefersDark));
-      fetcher.submit(formData, { method: 'post', action: '/api/theme' });
-    }
-  }, [theme, resolvedTheme, fetcher]);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
 
   return null;
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const data = useRouteLoaderData<typeof loader>("root");
-  const resolvedTheme = data?.resolvedTheme || 'light';
-
   return (
-    <html lang="en" className={resolvedTheme === 'dark' ? 'dark' : ''}>
+    <html lang="en">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="apple-mobile-web-app-title" content="Kynan Tokoro" />
+        {/* Apply theme before CSS loads to prevent FOUC */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                const theme = localStorage.getItem('theme') || 'system';
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const shouldBeDark = theme === 'dark' || (theme === 'system' && prefersDark);
+
+                // Set both class and data attribute
+                if (shouldBeDark) {
+                  document.documentElement.classList.add('dark');
+                }
+                document.documentElement.setAttribute('data-theme', theme);
+              })();
+            `,
+          }}
+        />
         <Meta />
         <Links />
       </head>

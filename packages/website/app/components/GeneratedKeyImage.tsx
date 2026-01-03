@@ -1,4 +1,3 @@
-import { useRouteLoaderData } from 'react-router';
 
 // Seeded random generator (決定的な乱数生成)
 function seededRandom(seed: number, index: number): number {
@@ -94,25 +93,19 @@ interface GeneratedKeyImageProps {
 
 export default function GeneratedKeyImage({ seed, className = "", containerSize = 128 }: GeneratedKeyImageProps) {
   const params = generateImageParams(seed, containerSize);
-  const rootData = useRouteLoaderData('root') as { resolvedTheme: 'light' | 'dark' } | undefined;
-  const isDark = rootData?.resolvedTheme === 'dark';
-
-  // Build filter: hue-rotate + invert (only in light mode, like profile GIF)
-  const filter = isDark
-    ? `hue-rotate(${params.hue}deg)`
-    : `hue-rotate(${params.hue}deg) invert(100%)`;
 
   return (
     <div className={`relative overflow-hidden ${className}`}>
       <img
         src={`/dsanim-frames/frame_${params.frame.toString().padStart(2, '0')}.png`}
         alt=""
+        className="invert dark:invert-0"
         style={{
           width: `${params.width.toFixed(2)}px`,
           height: `${params.height.toFixed(2)}px`,
           maxWidth: 'none',
           transform: `translate(${params.posX.toFixed(2)}px, ${params.posY.toFixed(2)}px) rotate(${params.rotation}deg)`,
-          filter,
+          filter: `hue-rotate(${params.hue}deg)`,
           imageRendering: 'pixelated',
         }}
       />

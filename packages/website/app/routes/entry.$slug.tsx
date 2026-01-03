@@ -61,9 +61,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
   return { entry, projectId, dataset };
 }
 
-// Cache-Control headers are required for Link prefetch to work properly
-// Without this, prefetched data is not reused on navigation
-// See: https://github.com/remix-run/react-router/issues/13255
+// Public cache since theme is managed client-side
 export function headers() {
   return {
     "Cache-Control": "public, max-age=60, stale-while-revalidate=3600",

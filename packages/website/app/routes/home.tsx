@@ -1,12 +1,11 @@
 import type { Route } from "./+types/home";
 import { useState, useEffect } from "react";
-import { useSearchParams, useRouteLoaderData } from "react-router";
+import { useSearchParams } from "react-router";
 import { useLanguage } from "../contexts/language-context";
 import EntryCard from "../components/EntryCard";
 import Header from "../components/Header";
 import HomeHeader from "../components/HomeHeader";
 import { createSanityClient, queries, type SanityEnv } from '../lib/sanity';
-import type { loader as rootLoader } from "../root";
 
 export function meta() {
   const title = "Kynan Tokoro";
@@ -60,9 +59,7 @@ export async function loader({ context }: Route.LoaderArgs) {
   return { entries, profileHue };
 }
 
-// Cache-Control headers are required for Link prefetch to work properly
-// Without this, prefetched data is not reused on navigation
-// See: https://github.com/remix-run/react-router/issues/13255
+// Public cache since theme is managed client-side
 export function headers() {
   return {
     "Cache-Control": "public, max-age=60, stale-while-revalidate=3600",
@@ -89,8 +86,6 @@ type Entry = {
 export default function Home({ loaderData }: Route.ComponentProps) {
   const { language } = useLanguage();
   const { entries, profileHue } = loaderData;
-  const rootData = useRouteLoaderData<typeof rootLoader>("root");
-  const resolvedTheme = rootData?.resolvedTheme || 'light';
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Get filter from URL, default to 'all'
@@ -126,7 +121,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   return (
     <div className="min-h-screen">
       <Header />
-      <HomeHeader hueRotate={profileHue} isDark={resolvedTheme === 'dark'} />
+      <HomeHeader hueRotate={profileHue} />
 
       {/* Filter */}
       <section className="pb-4 px-8">

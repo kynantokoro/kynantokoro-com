@@ -110,3 +110,22 @@ html.dark body {
 .portable-text p:last-child {
   @apply mb-0;
 }
+
+/* Theme icon visibility controlled by data-theme attribute */
+.theme-icon-light,
+.theme-icon-dark,
+.theme-icon-system {
+  display: none;
+}
+
+html[data-theme="light"] .theme-icon-light {
+  display: block;
+}
+
+html[data-theme="dark"] .theme-icon-dark {
+  display: block;
+}
+
+html[data-theme="system"] .theme-icon-system {
+  display: block;
+}
