@@ -1,5 +1,4 @@
 import {defineField, defineType, defineArrayMember} from 'sanity'
-import {EmojiNumberInput} from '../components/EmojiNumberInput'
 import {ImageSeedInput} from '../components/ImageSeedInput'
 
 export default defineType({
@@ -55,17 +54,6 @@ export default defineType({
       type: 'date',
       title: 'Date',
       validation: (Rule) => Rule.required(),
-    }),
-    defineField({
-      name: 'emoji',
-      type: 'number',
-      title: 'Emoji Icon',
-      description: 'Choose an emoji number (1-323)',
-      validation: (Rule) => Rule.min(1).max(323).integer(),
-      initialValue: 1,
-      components: {
-        input: EmojiNumberInput,
-      },
     }),
     defineField({
       name: 'imageSeed',
