@@ -14,7 +14,7 @@ export default function HomeHeader({ hueRotate }: HomeHeaderProps) {
     },
     ja: {
       name: "野老快南",
-      description: "ソフトウェアと音楽をつくっています。趣味でゲームも。日本語と英語。東京在住。",
+      description: "ソフトウェアと音楽をつくっています。たまにゲームもつくります。日本語と英語が使えます。東京在住。",
     }
   };
 
