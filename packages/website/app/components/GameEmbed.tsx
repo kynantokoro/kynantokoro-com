@@ -124,7 +124,7 @@ export default function GameEmbed({ src, title = "Game", aspectRatio = "16/9", c
           title={title}
           className="w-full h-full border-0 outline-none"
           allow="gamepad; fullscreen"
-          sandbox="allow-scripts allow-same-origin"
+          sandbox="allow-scripts allow-same-origin allow-modals"
           onLoad={handleIframeLoad}
         />
       )}
