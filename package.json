@@ -9,7 +9,8 @@
 		"build:projects": "pnpm --filter './packages/projects/**' build",
 		"build": "pnpm build:projects && pnpm --filter website build",
 		"deploy": "pnpm build && pnpm --filter website deploy",
-		"typecheck": "pnpm -r typecheck"
+		"typecheck": "pnpm -r typecheck",
+		"build:project": "tsx scripts/build-project.ts"
 	},
 	"devDependencies": {
 		"tsx": "^4.19.2"
