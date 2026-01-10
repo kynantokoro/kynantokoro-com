@@ -26,6 +26,12 @@ export default function GameEmbed({ src, title = "Game", aspectRatio = "16/9", c
       case "4/3":
       case "4:3":
         return "aspect-[4/3]";
+      case "4/5":
+      case "4:5":
+        return "aspect-[4/5]";
+      case "3/4":
+      case "3:4":
+        return "aspect-[3/4]";
       case "16/9":
       case "16:9":
       default:
