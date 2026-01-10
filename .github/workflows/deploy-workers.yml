@@ -53,6 +53,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Test lovejs-template
+        run: pnpm --filter lovejs-template test
+
       # Docker image caching doesn't improve performance for large images (~576MB)
       # Cache restore (5s) + docker load (21s) = 26s > docker pull (20s)
       # So we just pull directly from Docker Hub every time
@@ -71,7 +74,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            packages/projects/*/build
+            packages/projects/*/dist
             packages/website/public/projects
           key: ${{ runner.os }}-project-outputs-${{ github.sha }}
           restore-keys: |
