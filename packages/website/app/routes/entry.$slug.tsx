@@ -44,7 +44,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
     slug: sanityEntry.slug,
     type: sanityEntry.entryType,
     metadata: {
-      title: sanityEntry.title,
+      title: sanityEntry.title || { en: 'Untitled', ja: 'Untitled' },
       week: sanityEntry.week,
       date: sanityEntry.date,
       tags: sanityEntry.tags || [],
@@ -53,7 +53,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
       enIsTranslated: sanityEntry.enIsTranslated || false,
       jaIsTranslated: sanityEntry.jaIsTranslated || false,
     },
-    content: sanityEntry.content,
+    content: sanityEntry.content || { en: [], ja: [] },
     hasEn: sanityEntry.hasEn,
     hasJa: sanityEntry.hasJa,
   };
