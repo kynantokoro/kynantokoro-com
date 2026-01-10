@@ -20,10 +20,10 @@
     "@sanity/icons": "^3.7.4",
     "@sanity/locale-ja-jp": "^1.1.28",
     "@sanity/ui": "^3.1.11",
-    "@sanity/vision": "^5.1.0",
+    "@sanity/vision": "^5.2.0",
     "react": "^19.1",
     "react-dom": "^19.1",
-    "sanity": "^5.1.0",
+    "sanity": "^5.2.0",
     "styled-components": "^6.1.18"
   },
   "devDependencies": {
