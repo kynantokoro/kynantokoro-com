@@ -14,7 +14,7 @@ calculate_project_hash() {
   local project_path=$1
   # ビルド出力、キャッシュ、一時ファイルを除く全ファイルのハッシュを計算
   find "$project_path" -type f \
-    ! -path "*/build/*" \
+    ! -path "*/dist/*" \
     ! -path "*/node_modules/*" \
     ! -path "*/.git/*" \
     ! -path "*/.cache/*" \
@@ -64,7 +64,7 @@ for project_dir in "$PROJECTS_DIR"/*/; do
   NEW_HASHES=$(echo "$NEW_HASHES" | jq --arg name "$project_name" --arg hash "$current_hash" '.[$name] = $hash')
 
   # ハッシュ比較
-  if [ "$current_hash" = "$previous_hash" ] && [ -d "$project_dir/build" ]; then
+  if [ "$current_hash" = "$previous_hash" ] && [ -d "$project_dir/dist" ]; then
     echo "⏭️  Skipping $project_name (unchanged)"
     SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
   else
@@ -77,6 +77,15 @@ for project_dir in "$PROJECTS_DIR"/*/; do
     # プロジェクトをビルド
     cd "$project_dir"
     pnpm build
+
+    # ビルド出力をwebsiteにコピー
+    if [ -d "dist" ]; then
+      OUTPUT_DIR="$SCRIPT_DIR/../../packages/website/public/projects/$project_name"
+      mkdir -p "$OUTPUT_DIR"
+      echo "   Installing from dist/ to website/public/projects/$project_name"
+      cp -r dist/* "$OUTPUT_DIR/"
+    fi
+
     cd - > /dev/null
 
     BUILT_COUNT=$((BUILT_COUNT + 1))
