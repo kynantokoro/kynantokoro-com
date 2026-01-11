@@ -1,5 +1,6 @@
 import { createRequestHandler } from "react-router";
 import translateWorker from "./translate";
+import { SHARED_ARRAY_BUFFER_HEADERS } from "../shared-headers";
 
 declare module "react-router" {
   export interface AppLoadContext {
@@ -28,11 +29,17 @@ export default {
       cloudflare: { env, ctx },
     });
 
+    // Create new response with all necessary headers
+    const newResponse = new Response(response.body, response);
+
+    // Required headers for SharedArrayBuffer support (used by LÖVE.js projects)
+    Object.entries(SHARED_ARRAY_BUFFER_HEADERS).forEach(([key, value]) => {
+      newResponse.headers.set(key, value);
+    });
+
     // Add cache headers for HTML responses (only in production mode)
     const contentType = response.headers.get('Content-Type') || '';
     if (contentType.includes('text/html')) {
-      const newResponse = new Response(response.body, response);
-
       // Disable cache for draft mode to show latest unpublished content
       const isDraftMode = env.SANITY_PERSPECTIVE === 'drafts';
       if (isDraftMode) {
@@ -41,10 +48,8 @@ export default {
         // SWR cache for production: 60s cache, 1 week stale-while-revalidate
         newResponse.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=604800');
       }
-
-      return newResponse;
     }
 
-    return response;
+    return newResponse;
   },
 } satisfies ExportedHandler<Env>;

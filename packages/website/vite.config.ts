@@ -3,6 +3,7 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
+import { SHARED_ARRAY_BUFFER_HEADERS } from "./shared-headers";
 
 export default defineConfig({
   plugins: [
@@ -12,10 +13,7 @@ export default defineConfig({
     tsconfigPaths(),
   ],
   server: {
-    headers: {
-      // Required for SharedArrayBuffer support in LÖVE.js projects
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Embedder-Policy": "require-corp",
-    },
+    // Apply same headers in development as production
+    headers: SHARED_ARRAY_BUFFER_HEADERS,
   },
 });

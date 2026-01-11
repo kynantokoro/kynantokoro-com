@@ -1,0 +1,5 @@
+# Security headers for SharedArrayBuffer support in LÖVE.js games
+# These must match SHARED_ARRAY_BUFFER_HEADERS in shared-headers.ts
+/projects/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
