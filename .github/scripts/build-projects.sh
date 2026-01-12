@@ -49,6 +49,11 @@ for project_dir in "$PROJECTS_DIR"/*/; do
 
   project_name=$(basename "$project_dir")
 
+  # lovejs-template をスキップ
+  if [ "$project_name" = "lovejs-template" ]; then
+    continue
+  fi
+
   # package.json が存在するプロジェクトのみ処理
   if [ ! -f "$project_dir/package.json" ]; then
     continue
