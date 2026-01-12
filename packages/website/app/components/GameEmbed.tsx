@@ -1,4 +1,17 @@
 import { useRef, useState, useEffect } from 'react';
+import { z } from 'zod';
+
+// Schema for app.json validation
+const AppMetadataSchema = z.object({
+  title: z.string().optional(),
+  resolution: z.object({
+    width: z.number(),
+    height: z.number(),
+    aspectRatio: z.string()
+  })
+});
+
+type AppMetadata = z.infer<typeof AppMetadataSchema>;
 
 interface GameEmbedProps {
   src: string;
@@ -11,57 +24,39 @@ export default function GameEmbed({ src, title = "Game", aspectRatio = "16/9", c
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [hasStarted, setHasStarted] = useState(false);
-  const [iframeSrc, setIframeSrc] = useState<string | null>(null);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [computedAspectRatio, setComputedAspectRatio] = useState(aspectRatio);
 
-  // Detect if mobile (screen width < 768px)
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  // Detect touch device on mount
+  useEffect(() => {
+    setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  }, []);
 
-  // Map aspect ratio string to Tailwind class or custom style
-  const getAspectClass = () => {
-    switch (aspectRatio) {
-      case "1/1":
-      case "1:1":
-        return "aspect-square";
-      case "4/3":
-      case "4:3":
-        return "aspect-[4/3]";
-      case "4/5":
-      case "4:5":
-        return "aspect-[4/5]";
-      case "3/4":
-      case "3:4":
-        return "aspect-[3/4]";
-      case "16/9":
-      case "16:9":
-      default:
-        return "aspect-video";
-    }
-  };
-
-  const handlePlay = async () => {
-    setHasStarted(true);
-
-    // Start loading iframe
-    setIframeSrc(src);
-
-    // On mobile: enter fullscreen first
-    if (isMobile && containerRef.current && !document.fullscreenElement) {
+  // Fetch app.json to get dynamic aspect ratio
+  useEffect(() => {
+    const fetchAppMetadata = async () => {
       try {
-        await containerRef.current.requestFullscreen();
-        setIsFullscreen(true);
-      } catch (err) {
-        console.error('Fullscreen error:', err);
+        const appJsonUrl = `${src}/app.json`;
+        const response = await fetch(appJsonUrl);
+        if (response.ok) {
+          const data = await response.json();
+          // Validate with Zod schema
+          const result = AppMetadataSchema.safeParse(data);
+          if (result.success) {
+            setComputedAspectRatio(result.data.resolution.aspectRatio);
+          } else {
+            console.warn('Invalid app.json schema:', result.error);
+          }
+        }
+      } catch (error) {
+        // Silently fail and use default aspectRatio
+        console.warn('Failed to fetch app.json, using default aspect ratio:', error);
       }
-    }
-  };
+    };
 
-  const handleIframeLoad = () => {
-    // Send message to iframe to start the game
-    if (iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.postMessage({ type: 'START_GAME' }, '*');
-    }
-  };
+    fetchAppMetadata();
+  }, [src]);
+
 
   const toggleFullscreen = async (e: React.MouseEvent<HTMLButtonElement>) => {
     if (!containerRef.current) return;
@@ -121,47 +116,32 @@ export default function GameEmbed({ src, title = "Game", aspectRatio = "16/9", c
   return (
     <div
       ref={containerRef}
-      className={`relative w-full ${getAspectClass()} bg-gray-900 dark:bg-gray-950 rounded-lg overflow-hidden group ${className}`}
+      style={{ aspectRatio: computedAspectRatio }}
+      className={`relative w-full bg-gray-900 dark:bg-gray-950 rounded-lg overflow-hidden group ${className}`}
     >
-      {iframeSrc && (
-        <iframe
-          ref={iframeRef}
-          src={iframeSrc}
-          title={title}
-          className="w-full h-full border-0 outline-none"
-          allow="gamepad; fullscreen"
-          sandbox="allow-scripts allow-same-origin allow-modals"
-          onLoad={handleIframeLoad}
-        />
-      )}
+      <iframe
+        ref={iframeRef}
+        src={src}
+        title={title}
+        className="w-full h-full border-0 outline-none"
+        allow="gamepad; fullscreen"
+        sandbox="allow-scripts allow-same-origin allow-modals"
+      />
 
-      {/* Fullscreen Button (hidden when in fullscreen, ESC key is enough) */}
+      {/* Fullscreen Button (always visible on touch devices, hover on desktop) */}
       {!isFullscreen && (
         <button
           onClick={toggleFullscreen}
           tabIndex={-1}
-          className="absolute top-4 right-4 bg-gray-800/80 hover:bg-gray-700/90 text-white p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity outline-none"
+          className={`absolute top-4 right-4 bg-gray-800/80 hover:bg-gray-700/90 text-white p-2 rounded-lg transition-opacity outline-none ${
+            isTouchDevice ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          }`}
           aria-label="Enter fullscreen"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
           </svg>
         </button>
-      )}
-
-      {/* Play Overlay (click to start) */}
-      {!hasStarted && (
-        <div className="absolute inset-0 bg-gray-950 dark:bg-black/90 flex items-center justify-center z-50">
-          <button
-            onClick={handlePlay}
-            className="bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold text-lg px-8 py-4 rounded-lg shadow-lg transform transition-all hover:scale-105 active:scale-95 flex items-center gap-3"
-          >
-            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-            {isMobile ? 'Play Fullscreen' : 'Play Game'}
-          </button>
-        </div>
       )}
     </div>
   );

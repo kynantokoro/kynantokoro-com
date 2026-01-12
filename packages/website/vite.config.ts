@@ -15,5 +15,7 @@ export default defineConfig({
   server: {
     // Apply same headers in development as production
     headers: SHARED_ARRAY_BUFFER_HEADERS,
+    // Allow Cloudflare Tunnel hosts for mobile testing
+    allowedHosts: ['.trycloudflare.com'],
   },
 });

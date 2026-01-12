@@ -5,7 +5,6 @@ type GameEmbedBlockProps = {
     _key: string;
     gameSlug: string;
     title?: string;
-    aspectRatio?: string;
   };
 };
 
@@ -20,7 +19,6 @@ export default function GameEmbedBlock({ value }: GameEmbedBlockProps) {
       <GameEmbed
         src={gameUrl}
         title={value.title || 'Game'}
-        aspectRatio={value.aspectRatio}
       />
     </div>
   );

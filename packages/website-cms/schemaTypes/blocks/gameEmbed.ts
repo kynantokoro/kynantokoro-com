@@ -19,24 +19,7 @@ export default defineType({
       name: 'title',
       type: 'string',
       title: 'Title',
-      description: 'Title for the game embed',
-    }),
-    defineField({
-      name: 'aspectRatio',
-      type: 'string',
-      title: 'Aspect Ratio',
-      description: 'Aspect ratio of the game',
-      options: {
-        list: [
-          {title: '16:9', value: '16/9'},
-          {title: '4:3', value: '4/3'},
-          {title: '4:5', value: '4/5'},
-          {title: '3:4', value: '3/4'},
-          {title: '1:1', value: '1/1'},
-        ],
-        layout: 'radio',
-      },
-      initialValue: '16/9',
+      description: 'Title for the game embed (aspect ratio is automatically detected from the game)',
     }),
   ],
   preview: {
