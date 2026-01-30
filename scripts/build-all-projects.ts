@@ -54,22 +54,48 @@ for (const projectName of projects) {
 
   try {
     const projectDir = path.join(projectsDir, projectName);
-    const outputDir = path.join(rootDir, 'packages/website/public/projects', projectName);
+    const packageJsonPath = path.join(projectDir, 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
     // Build the project
     execSync('pnpm build', { cwd: projectDir, stdio: 'inherit' });
 
+    // Build reference version if build:reference script exists
+    if (packageJson.scripts?.['build:reference']) {
+      console.log(`   🔨 Building reference version...`);
+      execSync('pnpm build:reference', { cwd: projectDir, stdio: 'inherit' });
+    }
+
+    let installedCount = 0;
+
     // Copy dist to website/public/projects
     const distDir = path.join(projectDir, 'dist');
     if (fs.existsSync(distDir)) {
+      const outputDir = path.join(rootDir, 'packages/website/public/projects', projectName);
       console.log(`   📦 Installing to website/public/projects/${projectName}`);
       fs.mkdirSync(outputDir, { recursive: true });
       execSync(`cp -r "${distDir}/"* "${outputDir}/"`, { stdio: 'inherit' });
-      console.log(`   ✅ Done!\n`);
-      successCount++;
-    } else {
+      console.log(`   ✅ Installed ${projectName}`);
+      installedCount++;
+    }
+
+    // Copy dist-reference to website/public/projects if it exists
+    const distRefDir = path.join(projectDir, 'dist-reference');
+    if (fs.existsSync(distRefDir)) {
+      const outputRefDir = path.join(rootDir, 'packages/website/public/projects', `${projectName}-reference`);
+      console.log(`   📦 Installing to website/public/projects/${projectName}-reference`);
+      fs.mkdirSync(outputRefDir, { recursive: true });
+      execSync(`cp -r "${distRefDir}/"* "${outputRefDir}/"`, { stdio: 'inherit' });
+      console.log(`   ✅ Installed ${projectName}-reference`);
+      installedCount++;
+    }
+
+    if (installedCount === 0) {
       console.log(`   ⚠️  No dist/ directory found, skipping installation\n`);
       failCount++;
+    } else {
+      console.log('');
+      successCount++;
     }
   } catch (error) {
     console.error(`   ❌ Failed to build ${projectName}\n`);

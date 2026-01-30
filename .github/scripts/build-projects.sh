@@ -83,12 +83,26 @@ for project_dir in "$PROJECTS_DIR"/*/; do
     cd "$project_dir"
     pnpm build
 
+    # build:reference スクリプトが存在すればそれも実行
+    if grep -q '"build:reference"' package.json 2>/dev/null; then
+      echo "   Building reference version..."
+      pnpm build:reference
+    fi
+
     # ビルド出力をwebsiteにコピー
     if [ -d "dist" ]; then
       OUTPUT_DIR="$SCRIPT_DIR/../../packages/website/public/projects/$project_name"
       mkdir -p "$OUTPUT_DIR"
       echo "   Installing from dist/ to website/public/projects/$project_name"
       cp -r dist/* "$OUTPUT_DIR/"
+    fi
+
+    # dist-reference が存在すればそれもコピー
+    if [ -d "dist-reference" ]; then
+      OUTPUT_REF_DIR="$SCRIPT_DIR/../../packages/website/public/projects/${project_name}-reference"
+      mkdir -p "$OUTPUT_REF_DIR"
+      echo "   Installing from dist-reference/ to website/public/projects/${project_name}-reference"
+      cp -r dist-reference/* "$OUTPUT_REF_DIR/"
     fi
 
     cd - > /dev/null
