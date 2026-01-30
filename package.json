@@ -6,11 +6,11 @@
 	"scripts": {
 		"dev": "pnpm --filter website dev",
 		"dev:projects": "pnpm --filter projects dev",
-		"build:projects": "pnpm --filter './packages/projects/**' build",
+		"build:project": "tsx scripts/build-project.ts",
+		"build:projects": "tsx scripts/build-all-projects.ts",
 		"build": "pnpm build:projects && pnpm --filter website build",
 		"deploy": "pnpm build && pnpm --filter website deploy",
-		"typecheck": "pnpm -r typecheck",
-		"build:project": "tsx scripts/build-project.ts"
+		"typecheck": "pnpm -r typecheck"
 	},
 	"devDependencies": {
 		"tsx": "^4.19.2"
