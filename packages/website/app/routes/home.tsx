@@ -1,12 +1,11 @@
 import type { Route } from "./+types/home";
-import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router";
+import { Link } from "react-router";
 import { useLanguage } from "../contexts/language-context";
 import EntryCard from "../components/EntryCard";
 import Header from "../components/Header";
 import HomeHeader from "../components/HomeHeader";
 import { createSanityClient, queries, type SanityEnv } from '../lib/sanity';
-import { uniqueTags, type TagEntry } from '../lib/tags';
+import { type TagEntry } from '../lib/tags';
 import { blogLd } from '../lib/jsonLd';
 
 export function meta({ params, data }: Route.MetaArgs) {
@@ -93,72 +92,31 @@ type Entry = {
 export default function Home({ loaderData }: Route.ComponentProps) {
   const { language } = useLanguage();
   const { entries, profileHue } = loaderData;
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  // Selected tag from URL (?tag=...), or null for "All"
-  const [selectedTag, setSelectedTag] = useState<string | null>(searchParams.get('tag'));
-
-  useEffect(() => {
-    setSelectedTag(searchParams.get('tag'));
-  }, [searchParams]);
-
-  const allTags = uniqueTags(
-    entries.map((e: Entry) => ({
-      slug: e.slug,
-      title: e.metadata.title,
-      date: e.metadata.date,
-      tags: e.metadata.tags,
-    }))
-  );
-
-  const filteredEntries = entries.filter((entry: Entry) =>
-    selectedTag ? (entry.metadata.tags || []).includes(selectedTag) : true
-  );
 
   return (
     <div className="min-h-screen">
       <Header />
       <HomeHeader hueRotate={profileHue} />
 
-      {/* Tag filter */}
-      {allTags.length > 0 && (
-        <section className="pb-4 px-8">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={() => setSearchParams({}, { replace: true, preventScrollReset: true })}
-                className={`px-4 py-2 text-sm font-serif rounded transition-colors outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 ${
-                  !selectedTag
-                    ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-medium'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                }`}
-              >
-                {language === 'ja' ? 'すべて' : 'All'}
-              </button>
-              {allTags.map((tag) => (
-                <button
-                  key={tag}
-                  onClick={() => setSearchParams({ tag }, { replace: true, preventScrollReset: true })}
-                  className={`px-4 py-2 text-sm font-serif rounded transition-colors outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 ${
-                    selectedTag === tag
-                      ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-medium'
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  {tag}
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
+      {/* Tag Search */}
+      <section className="pb-4 px-8">
+        <div className="max-w-4xl mx-auto">
+          <Link
+            to={`/${language}/tags`}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-serif rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-yellow-500"
+          >
+            {language === 'ja' ? 'タグサーチ' : 'Tag Search'}
+            <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+      </section>
 
       {/* Entries */}
       <section className="pb-8 px-8">
         <div className="max-w-4xl mx-auto">
           <div className="space-y-0">
-            {filteredEntries.length > 0 ? (
-              filteredEntries.map((entry: Entry) => (
+            {entries.length > 0 ? (
+              entries.map((entry: Entry) => (
                 <EntryCard
                   key={entry.slug}
                   slug={entry.slug}
