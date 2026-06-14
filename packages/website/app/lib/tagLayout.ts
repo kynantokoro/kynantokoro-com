@@ -71,6 +71,10 @@ export function parseTagLayout(data: unknown): TagLayout {
 
 // --- bubble geometry -------------------------------------------------------
 
+/** Logical canvas size the bubble map is laid out in (matches the SVG viewBox). */
+export const MAP_WIDTH = 900;
+export const MAP_HEIGHT = 600;
+
 export function radiusFor(
   count: number,
   maxCount: number,

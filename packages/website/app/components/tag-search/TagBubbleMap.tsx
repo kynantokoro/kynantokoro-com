@@ -9,10 +9,7 @@ import {
 } from 'd3-force';
 import { select } from 'd3-selection';
 import { zoom, type ZoomBehavior } from 'd3-zoom';
-import type { BubbleNode } from '../../lib/tagLayout';
-
-export const MAP_WIDTH = 900;
-export const MAP_HEIGHT = 600;
+import { MAP_WIDTH, MAP_HEIGHT, type BubbleNode } from '../../lib/tagLayout';
 
 type SimNode = BubbleNode & SimulationNodeDatum;
 
