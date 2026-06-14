@@ -1,6 +1,7 @@
 import { Link, useSearchParams, useRouteLoaderData } from 'react-router';
 import { useLanguage } from '../contexts/language-context';
 import LanguageSelector from './LanguageSelector';
+import BackgroundToggle from './BackgroundToggle';
 import ThemeToggle from './ThemeToggle';
 import type { loader as languageLayoutLoader } from '../routes/language-layout';
 
@@ -39,9 +40,10 @@ export default function Header({ showBackButton = false }: HeaderProps) {
             )}
           </div>
 
-          {/* Right side - Language & Theme */}
+          {/* Right side - Language, Background & Theme */}
           <div className="flex items-center gap-2">
             <LanguageSelector />
+            <BackgroundToggle />
             <ThemeToggle />
           </div>
         </div>

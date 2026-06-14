@@ -6,7 +6,7 @@ export default function Footer({ className = '' }: FooterProps) {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className={`bg-white dark:bg-gray-900 ${className}`}>
+    <footer className={`bg-transparent ${className}`}>
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="text-center space-y-2">
           <p className="text-sm text-gray-600 dark:text-gray-400 font-serif">

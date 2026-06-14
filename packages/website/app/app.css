@@ -64,6 +64,36 @@ html.dark body {
   color-scheme: dark;
 }
 
+/* Interactive shader wallpaper: a single fixed canvas painted behind all
+   content. The wrapper carries the base background colour as a fallback so
+   there is never a flash before/if WebGL paints. */
+.shader-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: #f5f6f8;
+}
+
+html.dark .shader-bg {
+  background: #111827;
+}
+
+.shader-bg__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* While a wallpaper is selected, let it show through the page. When "off",
+   html/body keep their solid colours and hide the canvas entirely. */
+html.shader-active,
+html.shader-active body {
+  background: transparent;
+}
+
 /* Focus-visible styles: yellow background like gov.uk for high visibility */
 .focus-invert:focus-visible {
   @apply outline-none bg-yellow-400 text-gray-900;

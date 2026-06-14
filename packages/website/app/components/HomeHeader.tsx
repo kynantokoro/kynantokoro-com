@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { useLanguage } from '../contexts/language-context';
+import { useShader } from '../contexts/shader-context';
 
 interface HomeHeaderProps {
   hueRotate: number;
@@ -6,6 +8,12 @@ interface HomeHeaderProps {
 
 export default function HomeHeader({ hueRotate }: HomeHeaderProps) {
   const { language } = useLanguage();
+  const { setAccentHue } = useShader();
+
+  // Echo the key visual's randomised hue in the shader wallpaper.
+  useEffect(() => {
+    setAccentHue(hueRotate);
+  }, [hueRotate, setAccentHue]);
 
   const profile = {
     en: {
