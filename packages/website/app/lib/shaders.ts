@@ -135,7 +135,7 @@ vec4 facetField(vec2 x){
       vec2 o = vec2(float(i), float(j));
       vec2 cell = g + o;
       vec2 jit = vec2(hash21(cell), hash21(cell + 3.7));
-      vec2 pt = o + jit; // static facet point — the glass cut pattern is fixed
+      vec2 pt = o + 0.5 + (jit - 0.5) * 0.5; // near-regular static facet point
       vec2 rr = pt - f;
       float d = dot(rr, rr);
       if (d < d1){ d2 = d1; d1 = d; bestCell = cell; bestPt = g + pt; }
@@ -143,6 +143,15 @@ vec4 facetField(vec2 x){
     }
   }
   return vec4(sqrt(d2) - sqrt(d1), hash21(bestCell), bestPt);
+}
+
+// Regular triangular cut-line families (Edo-Kiriko 'asanoha' motif). Returns
+// the distance to the nearest cut line; 0 on a line.
+float cutLines(vec2 q, float freq){
+  float a = abs(fract(dot(q, vec2(1.0, 0.0)) * freq) - 0.5);
+  float b = abs(fract(dot(q, vec2(0.5, 0.8660254)) * freq) - 0.5);
+  float c = abs(fract(dot(q, vec2(-0.5, 0.8660254)) * freq) - 0.5);
+  return min(min(a, b), c);
 }
 
 void main(){
@@ -154,7 +163,7 @@ void main(){
   // The glass itself is a FIXED texture: a static organic warp so the facets
   // never read as a repeated lattice, and a kaleidoscope folded around the
   // screen centre (not the cursor) so the cut pattern never moves.
-  vec2 wp = p + 0.28 * vec2(fbm(p * 1.1 + 2.0), fbm(p * 1.1 + 9.0));
+  vec2 wp = p + 0.22 * vec2(fbm(p * 1.1 + 2.0), fbm(p * 1.1 + 9.0));
   vec2 kc = vec2(0.5 * ar, 0.5);
   vec2 rel = wp - kc;
   float rlen = length(rel);
@@ -182,22 +191,24 @@ void main(){
   total += wb;
   hueVec += vec2(cos(radians(uHue)), sin(radians(uHue))) * wb;
 
-  // Cut-glass facets at two scales: rims + specular glints toward the light,
-  // each facet taking its own hue for prismatic colour.
-  for (int s = 0; s < 2; s++){
-    float scale = (s == 0) ? 3.0 : 6.5;
-    vec4 F = facetField(gp * scale + float(s) * 11.0);
-    vec2 fc = F.zw / scale;
-    float rnd = F.y;
-    float rim = smoothstep(0.05, 0.0, F.x);
-    vec2 n = vec2(cos(rnd * 6.2831), sin(rnd * 6.2831));
-    vec2 toL = normalize(L - fc + 1e-4);
-    float spec = pow(max(dot(n, toL), 0.0), 6.0) * exp(-length(L - fc) * 0.9);
-    float w = spec * (s == 0 ? 0.9 : 0.6) + rim * (s == 0 ? 0.20 : 0.14);
-    float hue = uHue + (rnd - 0.5) * 150.0;
-    total += w;
-    hueVec += vec2(cos(radians(hue)), sin(radians(hue))) * w;
-  }
+  // Static Kiriko cut pattern: regular triangular line families at two scales
+  // (a repeating motif) over the warped/folded coord (organic complexity).
+  float cut = smoothstep(0.05, 0.0, cutLines(gp, 4.0)) * 0.5
+            + smoothstep(0.035, 0.0, cutLines(gp, 9.0)) * 0.35;
+  float hueCut = uHue + (hash21(floor(gp * 4.0)) - 0.5) * 120.0;
+  total += cut;
+  hueVec += vec2(cos(radians(hueCut)), sin(radians(hueCut))) * cut;
+
+  // Light glinting on the facets: a fairly regular Voronoi, specular toward
+  // the bulb so highlights travel across the fixed cuts as the light moves.
+  vec4 F = facetField(gp * 5.0);
+  vec2 fc = F.zw / 5.0;
+  float rnd = F.y;
+  vec2 nrm = vec2(cos(rnd * 6.2831), sin(rnd * 6.2831));
+  float spec = pow(max(dot(nrm, normalize(L - fc + 1e-4)), 0.0), 6.0) * exp(-length(L - fc) * 0.9);
+  float hueSpec = uHue + (rnd - 0.5) * 150.0;
+  total += spec * 0.9;
+  hueVec += vec2(cos(radians(hueSpec)), sin(radians(hueSpec))) * spec * 0.9;
 
   // Scattered surface streaks (passing headlights): random pos/angle/hue.
   for (int i = 0; i < 4; i++){
@@ -218,16 +229,16 @@ void main(){
     hueVec += vec2(cos(radians(hue)), sin(radians(hue))) * g;
   }
 
-  // Frosted ground-glass grain: a FIXED texture (organic clumps + fine
-  // speckle) plus an ambient frost layer, so the whole pane reads as frosted
-  // even away from the light. Modulates the amount only (keeps the budget).
-  float gClump = fbm(p * 14.0);
-  float gFine = hash21(floor(gl_FragCoord.xy));
-  float grainN = clamp(gClump * 0.55 + gFine * 0.45, 0.0, 1.0);
-  float frost = 0.16 * grainN;
+  // Frosted ground-glass grain: coarse, domain-warped frost clumps. (A fine
+  // per-pixel hash read as a regular pattern, so it's gone.) Fixed in screen
+  // space; modulates the amount only, so the contrast budget still holds.
+  vec2 wq = p + 0.6 * vec2(fbm(p * 1.3 + 4.0), fbm(p * 1.3 + 8.0));
+  float grainN = mix(fbm(wq * 5.0), fbm(wq * 10.0), 0.4);
+  grainN = smoothstep(0.25, 0.78, grainN);
+  float frost = 0.22 * grainN;
   total += frost;
   hueVec += vec2(cos(radians(uHue)), sin(radians(uHue))) * frost;
-  total = clamp(total * (0.5 + 1.0 * grainN), 0.0, 1.0);
+  total = clamp(total * (0.55 + 0.7 * grainN), 0.0, 1.0);
 
   float hue = degrees(atan(hueVec.y, hueVec.x));
   vec3 acc = accentAt(hue);
