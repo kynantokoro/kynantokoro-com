@@ -2,18 +2,20 @@
 //
 // Each wallpaper is a WebGL2 fragment shader rendered on a single fullscreen
 // triangle (no geometry buffers, no external dependencies). Every shader
-// reacts to the pointer, and most respond to clicks. Persistence across page
-// navigation is handled by the renderer, which lives in the always-mounted
-// root layout.
+// reacts to the pointer and to clicks. Persistence across page navigation is
+// handled by the renderer, which lives in the always-mounted root layout.
+//
+// The lineup is a family of organic, cellular wallpapers built around the
+// honeycomb: a clean hex lattice plus four organic variations (a warped
+// "molten" honeycomb, irregular Voronoi cells, a vein/crack network and soft
+// foam bubbles).
 //
 // Contrast budget: all shaders compose their pattern over the page background
 // with a shared, *measured* intensity (budget()). The budget is the largest
 // value that keeps the lightest functional text colour at WCAG AA (4.5:1)
 // against the worst-case background pixel, per theme. See
-// scripts/contrast-budget.mjs. Guards: light -> gray-600, dark -> gray-300
-// (dark secondary UI text is lifted to gray-300 so the wallpaper can be
-// brighter while staying AA). Measured limits 0.288 / 0.495, applied with a
-// hair of margin as 0.28 / 0.49.
+// scripts/contrast-budget.mjs (guards: light gray-600, dark gray-300;
+// measured limits 0.288 / 0.495, applied as 0.28 / 0.49).
 //
 // All shaders share a common GLSL preamble (`HEAD`) that exposes:
 //   uResolution, uTime, uMouse (0..1, y-up), uMouseVel, uTheme (0 light / 1
@@ -22,7 +24,7 @@
 // plus helpers: hash21/vnoise/fbm/flowField/hsv2rgb and the theming helpers
 // baseBg()/accentCol()/compose()/budget().
 
-export type ShaderId = "off" | "ink" | "contour" | "moire" | "hex" | "waves" | "spiral";
+export type ShaderId = "off" | "hex" | "warp" | "cells" | "veins" | "froth";
 
 export interface ShaderMeta {
   id: Exclude<ShaderId, "off">;
@@ -78,19 +80,12 @@ float fbm(vec2 p){
   for (int i = 0; i < 5; i++){ v += a * vnoise(p); p = m * p; a *= 0.5; }
   return v;
 }
-vec2 flowField(vec2 p){
-  float e = 0.01;
-  float a = fbm(p + vec2(0.0, e));
-  float b = fbm(p - vec2(0.0, e));
-  float c = fbm(p + vec2(e, 0.0));
-  float d = fbm(p - vec2(e, 0.0));
-  return vec2(a - b, -(c - d)) / (2.0 * e);
-}
 vec3 hsv2rgb(vec3 c){
   vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
   vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
   return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
+float hexDist(vec2 p){ p = abs(p); return max(dot(p, normalize(vec2(1.0, 1.7320508))), p.x); }
 // Base page background. Light: near-white (~gray-50). Dark: tailwind gray-900.
 vec3 baseBg(){ return mix(vec3(0.961, 0.965, 0.973), vec3(0.067, 0.094, 0.153), uTheme); }
 // Accent derived from the key-visual hue.
@@ -119,147 +114,19 @@ void main(){
 }
 `;
 
-// --- Ink — a true feedback fluid ------------------------------------------
-// The simulation pass advects, diffuses and decays a dye field stored in a
-// texture; the pointer injects dye and clicks splash it. The renderer keeps
-// the state textures alive across navigation, so the ink is never reset.
-const inkSimFrag = `${HEAD}
-uniform sampler2D uPrev;
-uniform vec3 uClick; // xy = last click (0..1, y-up), z = seconds since click
-out vec4 fragColor;
-void main(){
-  vec2 uv = gl_FragCoord.xy / uResolution.xy;
-  vec2 texel = 1.0 / uResolution.xy;
-  float ar = uResolution.x / uResolution.y;
-
-  float dye = texture(uPrev, uv).r;
-
-  // Diffuse (4-neighbour blur).
-  float nb = texture(uPrev, uv + vec2(0.0, texel.y)).r
-           + texture(uPrev, uv - vec2(0.0, texel.y)).r
-           + texture(uPrev, uv + vec2(texel.x, 0.0)).r
-           + texture(uPrev, uv - vec2(texel.x, 0.0)).r;
-  dye = mix(dye, nb * 0.25, 0.20);
-
-  // Advect along a divergence-free curl-noise flow.
-  vec2 fl = flowField(uv * 2.5 + uTime * 0.04) * 0.0016;
-  dye = mix(dye, texture(uPrev, uv - fl).r, 0.55);
-
-  // Decay so old dye fades.
-  dye *= 0.9925;
-
-  // Faint ambient emitters keep the field alive while idle.
-  float amb = smoothstep(0.88, 1.0, fbm(uv * 3.0 + vec2(0.0, uTime * 0.05)));
-  dye += amb * 0.010 * uMotion;
-
-  // Pointer injects dye (stronger while moving fast). Gated by recent activity
-  // so an idle cursor parked at the centre never accumulates a stuck blob.
-  vec2 dm = (uv - uMouse); dm.x *= ar;
-  dye += exp(-dot(dm, dm) * 220.0) * clamp(0.05 + 2.5 * length(uMouseVel), 0.0, 0.6) * uActive;
-
-  // Click splash.
-  vec2 dc = (uv - uClick.xy); dc.x *= ar;
-  dye += exp(-dot(dc, dc) * 110.0) * exp(-uClick.z * 3.5) * 0.45;
-
-  dye = clamp(dye, 0.0, 1.0);
-  fragColor = vec4(dye, dye, dye, 1.0);
-}
-`;
-
-const inkShowFrag = `${HEAD}
-uniform sampler2D uPrev;
-out vec4 fragColor;
-void main(){
-  vec2 uv = gl_FragCoord.xy / uResolution.xy;
-  float dye = texture(uPrev, uv).r;
-  float pattern = pow(clamp(dye, 0.0, 1.0), 0.85);
-  fragColor = vec4(compose(pattern, budget()), 1.0);
-}
-`;
-
-// --- Contour — animated topographic lines ---------------------------------
-// Iso-lines of a slowly drifting noise field. The cursor warps the terrain
-// and clicks raise a gentle, broad swell (kept soft so the click point does
-// not turn into a tight spiky bullseye).
-const contourFrag = `${HEAD}
-uniform vec2  uRipplePos[8];
-uniform float uRippleAge[8];
-out vec4 fragColor;
-void main(){
-  vec2 uv = gl_FragCoord.xy / uResolution.xy;
-  float ar = uResolution.x / uResolution.y;
-  vec2 p = uv * vec2(ar, 1.0);
-  vec2 m = uMouse * vec2(ar, 1.0);
-  float t = uTime * 0.03;
-
-  vec2 q = p * 2.2 + vec2(t, -t);
-  q += 0.3 * normalize(p - m + 1e-4) * exp(-length(p - m) * 2.0) * (0.5 + uActive);
-  float height = fbm(q);
-
-  for (int i = 0; i < 8; i++){
-    float age = uRippleAge[i];
-    if (age < 0.0) continue;
-    vec2 rc = uRipplePos[i] * vec2(ar, 1.0);
-    float dd = length(p - rc);
-    height += 0.16 * exp(-dd * dd * 4.0) * exp(-age * 0.7);
-  }
-
-  float hi = height * 12.0;
-  float f = abs(fract(hi) - 0.5);
-  float aa = fwidth(hi) * 1.5;
-  float pattern = smoothstep(aa, 0.0, f);
-  fragColor = vec4(compose(pattern, budget()), 1.0);
-}
-`;
-
-// --- Moiré — interfering ring fields --------------------------------------
-// Two concentric ring patterns (one drifting, one centred on the cursor) beat
-// against each other into sweeping moiré fringes. Clicks add a transient ring.
-const moireFrag = `${HEAD}
-uniform vec2  uRipplePos[8];
-uniform float uRippleAge[8];
-out vec4 fragColor;
-void main(){
-  vec2 uv = gl_FragCoord.xy / uResolution.xy;
-  float ar = uResolution.x / uResolution.y;
-  vec2 p = uv * vec2(ar, 1.0);
-  vec2 m = uMouse * vec2(ar, 1.0);
-  float t = uTime * 0.2;
-  float freq = 34.0;
-
-  vec2 c1 = vec2(0.5 * ar, 0.5) + 0.12 * vec2(sin(t), cos(t * 0.8));
-  float a = 0.5 + 0.5 * sin(length(p - c1) * freq);
-  float b = 0.5 + 0.5 * sin(length(p - m) * freq);
-  float inter = a * b;
-
-  float burst = 0.0;
-  for (int i = 0; i < 8; i++){
-    float age = uRippleAge[i];
-    if (age < 0.0) continue;
-    vec2 rc = uRipplePos[i] * vec2(ar, 1.0);
-    float rr = length(p - rc);
-    burst += (0.5 + 0.5 * sin(rr * freq - age * 8.0)) * exp(-rr * 2.2) * exp(-age * 1.0);
-  }
-
-  float pattern = smoothstep(0.5, 0.92, inter) + 0.5 * burst;
-  fragColor = vec4(compose(clamp(pattern, 0.0, 1.0), budget()), 1.0);
-}
-`;
-
-// --- Hex — a honeycomb grid -----------------------------------------------
-// A hexagonal tessellation whose rims glow; cells near the cursor light up and
-// clicks send a brightening ring through the lattice.
+// --- Hex — a clean honeycomb lattice --------------------------------------
+// Thin glowing rims; cells near the cursor light up and clicks send a
+// brightening ring through the lattice.
 const hexFrag = `${HEAD}
 uniform vec2  uRipplePos[8];
 uniform float uRippleAge[8];
 out vec4 fragColor;
-float hexDist(vec2 p){ p = abs(p); return max(dot(p, normalize(vec2(1.0, 1.7320508))), p.x); }
 void main(){
   vec2 uv = gl_FragCoord.xy / uResolution.xy;
   float ar = uResolution.x / uResolution.y;
   vec2 p = uv * vec2(ar, 1.0);
   vec2 m = uMouse * vec2(ar, 1.0);
-  float scale = 9.0;
+  float scale = 8.0;
   vec2 gp = p * scale;
 
   vec2 r = vec2(1.0, 1.7320508);
@@ -270,10 +137,10 @@ void main(){
   vec2 id = (gp - gv) / scale;
 
   float hd = hexDist(gv);
-  float aa = fwidth(hd) * 1.5;
-  float border = smoothstep(0.5 - 0.04 - aa, 0.5 - 0.04, hd);
+  float aa = fwidth(hd) * 1.2;
+  float border = smoothstep(0.5 - 0.015 - aa, 0.5 - 0.015, hd);
 
-  float hi = exp(-length(id - m) * 3.5) * (0.35 + 0.8 * uActive);
+  float hi = exp(-length(id - m) * 3.5) * (0.3 + 0.8 * uActive);
 
   float burst = 0.0;
   for (int i = 0; i < 8; i++){
@@ -283,53 +150,15 @@ void main(){
     burst += smoothstep(0.08, 0.0, abs(length(id - rc) - age * 0.45)) * exp(-age * 1.2);
   }
 
-  float pattern = clamp(border + hi * 0.7 + burst, 0.0, 1.0);
+  float pattern = clamp(border + hi * 0.55 + burst, 0.0, 1.0);
   fragColor = vec4(compose(pattern, budget()), 1.0);
 }
 `;
 
-// --- Waves — layered horizontal wavebands ---------------------------------
-// Five scrolling sine ribbons; their amplitude swells around the cursor's x
-// position and clicks send a transverse pulse across them.
-const wavesFrag = `${HEAD}
-uniform vec2  uRipplePos[8];
-uniform float uRippleAge[8];
-out vec4 fragColor;
-void main(){
-  vec2 uv = gl_FragCoord.xy / uResolution.xy;
-  vec2 m = uMouse;
-  float t = uTime * 0.3;
-
-  float dxm = (uv.x - m.x) * 3.0;
-  float bump = exp(-dxm * dxm) * (0.5 + uActive);
-
-  float pattern = 0.0;
-  for (int i = 0; i < 5; i++){
-    float fi = float(i);
-    float baseY = 0.18 + 0.16 * fi;
-    float amp = (0.025 + 0.012 * sin(t + fi)) * (1.0 + 1.6 * bump);
-    float y = baseY + amp * sin(uv.x * 8.0 + t * (1.0 + 0.2 * fi) + fi);
-    float d = abs(uv.y - y);
-    float aa = fwidth(uv.y) * 1.5 + 0.002;
-    pattern += smoothstep(0.012 + aa, 0.0, d);
-  }
-
-  for (int i = 0; i < 8; i++){
-    float age = uRippleAge[i];
-    if (age < 0.0) continue;
-    vec2 rc = uRipplePos[i];
-    float dx = abs(uv.x - rc.x);
-    pattern += smoothstep(0.03, 0.0, abs(dx - age * 0.4)) * exp(-age * 1.5) * 0.6;
-  }
-
-  fragColor = vec4(compose(clamp(pattern, 0.0, 1.0), budget()), 1.0);
-}
-`;
-
-// --- Spiral — a rotating vortex -------------------------------------------
-// A three-arm spiral that turns near the cursor; clicks emit an expanding
-// ring. The integer arm count keeps the arms seamless (no atan branch line).
-const spiralFrag = `${HEAD}
+// --- Warp — a molten honeycomb --------------------------------------------
+// The same hex lattice but its coordinates are domain-warped by drifting
+// noise so the comb flows and melts; the cursor adds a local swirl.
+const warpFrag = `${HEAD}
 uniform vec2  uRipplePos[8];
 uniform float uRippleAge[8];
 out vec4 fragColor;
@@ -338,43 +167,199 @@ void main(){
   float ar = uResolution.x / uResolution.y;
   vec2 p = uv * vec2(ar, 1.0);
   vec2 m = uMouse * vec2(ar, 1.0);
-  vec2 c = mix(vec2(0.5 * ar, 0.5), m, 0.5);
-  vec2 d = p - c;
-  float r = length(d);
-  float a = atan(d.y, d.x);
-  float t = uTime * 0.3;
+  float t = uTime * 0.05;
 
-  float ph = a * 3.0 + r * 8.0 - t * 2.0;
-  float spiral = smoothstep(0.55, 0.95, 0.5 + 0.5 * sin(ph)) * exp(-r * 0.9);
+  vec2 wp = p + 0.12 * vec2(fbm(p * 1.8 + t), fbm(p * 1.8 + 9.0 - t));
+  wp += 0.12 * normalize(p - m + 1e-4) * exp(-length(p - m) * 2.2) * (0.4 + uActive);
+
+  float scale = 8.0;
+  vec2 gp = wp * scale;
+  vec2 r = vec2(1.0, 1.7320508);
+  vec2 hh = r * 0.5;
+  vec2 a = mod(gp, r) - hh;
+  vec2 b = mod(gp - hh, r) - hh;
+  vec2 gv = dot(a, a) < dot(b, b) ? a : b;
+
+  float hd = hexDist(gv);
+  float aa = fwidth(hd) * 1.2;
+  float border = smoothstep(0.5 - 0.02 - aa, 0.5 - 0.02, hd);
 
   float burst = 0.0;
   for (int i = 0; i < 8; i++){
     float age = uRippleAge[i];
     if (age < 0.0) continue;
     vec2 rc = uRipplePos[i] * vec2(ar, 1.0);
-    burst += smoothstep(0.05, 0.0, abs(length(p - rc) - age * 0.5)) * exp(-age * 1.2);
+    burst += smoothstep(0.07, 0.0, abs(length(p - rc) - age * 0.5)) * exp(-age * 1.2);
   }
 
-  float pattern = clamp(spiral + burst, 0.0, 1.0);
+  float pattern = clamp(border + burst, 0.0, 1.0);
+  fragColor = vec4(compose(pattern, budget()), 1.0);
+}
+`;
+
+// --- Cells — irregular Voronoi membranes ----------------------------------
+// Drifting cell points form an organic membrane network; the cursor repels
+// nearby points and clicks send a pulse outward.
+const cellsFrag = `${HEAD}
+uniform vec2  uRipplePos[8];
+uniform float uRippleAge[8];
+out vec4 fragColor;
+void main(){
+  vec2 uv = gl_FragCoord.xy / uResolution.xy;
+  float ar = uResolution.x / uResolution.y;
+  vec2 p = uv * vec2(ar, 1.0);
+  vec2 m = uMouse * vec2(ar, 1.0);
+  float t = uTime * 0.06;
+  float scale = 5.0;
+  vec2 g = p * scale;
+  vec2 gi = floor(g);
+  vec2 gf = fract(g);
+
+  float d1 = 8.0;
+  float d2 = 8.0;
+  for (int j = -1; j <= 1; j++){
+    for (int i = -1; i <= 1; i++){
+      vec2 o = vec2(float(i), float(j));
+      vec2 fp = vec2(hash21(gi + o), hash21(gi + o + 3.7));
+      vec2 pt = o + 0.5 + 0.45 * sin(t + 6.2831 * fp);
+      vec2 away = (gi + pt) / scale - m;
+      pt += normalize(away + 1e-4) * exp(-dot(away, away) * 5.0) * (0.05 + 0.2 * uActive) * scale;
+      vec2 rr = pt - gf;
+      float d = dot(rr, rr);
+      if (d < d1){ d2 = d1; d1 = d; } else if (d < d2){ d2 = d; }
+    }
+  }
+  float edge = sqrt(d2) - sqrt(d1);
+  float net = smoothstep(0.03, 0.0, edge);
+
+  float pulse = 0.0;
+  for (int i = 0; i < 8; i++){
+    float age = uRippleAge[i];
+    if (age < 0.0) continue;
+    vec2 rc = uRipplePos[i] * vec2(ar, 1.0);
+    pulse += exp(-length(p - rc) * 2.2) * exp(-age * 1.5) * 0.6;
+  }
+
+  float pattern = clamp(net + pulse, 0.0, 1.0);
+  fragColor = vec4(compose(pattern, budget()), 1.0);
+}
+`;
+
+// --- Veins — an organic vein / crack network ------------------------------
+// Voronoi edges on a heavily noise-warped field read like leaf veins or
+// dried cracks; the cursor bends the field locally and clicks brighten.
+const veinsFrag = `${HEAD}
+uniform vec2  uRipplePos[8];
+uniform float uRippleAge[8];
+out vec4 fragColor;
+void main(){
+  vec2 uv = gl_FragCoord.xy / uResolution.xy;
+  float ar = uResolution.x / uResolution.y;
+  vec2 p = uv * vec2(ar, 1.0);
+  vec2 m = uMouse * vec2(ar, 1.0);
+  float t = uTime * 0.04;
+
+  vec2 wp = p + 0.18 * vec2(fbm(p * 2.2 + t), fbm(p * 2.2 + 7.3 - t));
+  wp += 0.12 * normalize(p - m + 1e-4) * exp(-length(p - m) * 2.5) * (0.3 + uActive);
+
+  float scale = 4.5;
+  vec2 g = wp * scale;
+  vec2 gi = floor(g);
+  vec2 gf = fract(g);
+
+  float d1 = 8.0;
+  float d2 = 8.0;
+  for (int j = -1; j <= 1; j++){
+    for (int i = -1; i <= 1; i++){
+      vec2 o = vec2(float(i), float(j));
+      vec2 fp = vec2(hash21(gi + o), hash21(gi + o + 3.7));
+      vec2 pt = o + 0.5 + 0.8 * (fp - 0.5);
+      vec2 rr = pt - gf;
+      float d = dot(rr, rr);
+      if (d < d1){ d2 = d1; d1 = d; } else if (d < d2){ d2 = d; }
+    }
+  }
+  float edge = sqrt(d2) - sqrt(d1);
+  float veins = smoothstep(0.022, 0.0, edge);
+
+  float glow = 0.0;
+  for (int i = 0; i < 8; i++){
+    float age = uRippleAge[i];
+    if (age < 0.0) continue;
+    vec2 rc = uRipplePos[i] * vec2(ar, 1.0);
+    glow += veins * exp(-length(p - rc) * 2.0) * exp(-age * 1.2);
+  }
+
+  float pattern = clamp(veins * 0.9 + glow, 0.0, 1.0);
+  fragColor = vec4(compose(pattern, budget()), 1.0);
+}
+`;
+
+// --- Froth — soft foam bubbles --------------------------------------------
+// Each Voronoi cell hosts a softly breathing bubble with a bright rim;
+// bubbles swell toward the cursor and clicks pop a pulse.
+const frothFrag = `${HEAD}
+uniform vec2  uRipplePos[8];
+uniform float uRippleAge[8];
+out vec4 fragColor;
+void main(){
+  vec2 uv = gl_FragCoord.xy / uResolution.xy;
+  float ar = uResolution.x / uResolution.y;
+  vec2 p = uv * vec2(ar, 1.0);
+  vec2 m = uMouse * vec2(ar, 1.0);
+  float t = uTime * 0.08;
+  float scale = 6.0;
+  vec2 g = p * scale;
+  vec2 gi = floor(g);
+  vec2 gf = fract(g);
+
+  float d1 = 8.0;
+  vec2 nearPt = vec2(0.0);
+  vec2 nearCell = vec2(0.0);
+  for (int j = -1; j <= 1; j++){
+    for (int i = -1; i <= 1; i++){
+      vec2 o = vec2(float(i), float(j));
+      vec2 fp = vec2(hash21(gi + o), hash21(gi + o + 3.7));
+      vec2 pt = o + 0.5 + 0.35 * sin(t * 0.8 + 6.2831 * fp);
+      vec2 rr = pt - gf;
+      float d = dot(rr, rr);
+      if (d < d1){ d1 = d; nearPt = (gi + pt) / scale; nearCell = gi + o; }
+    }
+  }
+  float r1 = sqrt(d1);
+  float ch = hash21(nearCell);
+  float radius = 0.34 + 0.05 * sin(t + ch * 6.2831);
+  radius += 0.10 * exp(-length(nearPt - m) * 3.0) * (0.3 + uActive);
+  float rim = smoothstep(0.025, 0.0, abs(r1 - radius));
+  float fill = smoothstep(radius, radius - 0.05, r1) * 0.16;
+
+  float pulse = 0.0;
+  for (int i = 0; i < 8; i++){
+    float age = uRippleAge[i];
+    if (age < 0.0) continue;
+    vec2 rc = uRipplePos[i] * vec2(ar, 1.0);
+    pulse += smoothstep(0.06, 0.0, abs(length(p - rc) - age * 0.5)) * exp(-age * 1.2);
+  }
+
+  float pattern = clamp(rim * 0.95 + fill + pulse, 0.0, 1.0);
   fragColor = vec4(compose(pattern, budget()), 1.0);
 }
 `;
 
 /** Selectable wallpapers (excludes the "off" / solid option). */
 export const SHADERS: ShaderDef[] = [
-  { id: "ink", kind: "feedback", en: "Ink", ja: "インク", simFrag: inkSimFrag, showFrag: inkShowFrag },
-  { id: "contour", kind: "simple", en: "Contour", ja: "等高線", frag: contourFrag },
-  { id: "moire", kind: "simple", en: "Moiré", ja: "モアレ", frag: moireFrag },
   { id: "hex", kind: "simple", en: "Hex", ja: "ハニカム", frag: hexFrag },
-  { id: "waves", kind: "simple", en: "Waves", ja: "ウェーブ", frag: wavesFrag },
-  { id: "spiral", kind: "simple", en: "Spiral", ja: "スパイラル", frag: spiralFrag },
+  { id: "warp", kind: "simple", en: "Warp", ja: "ゆらぎ", frag: warpFrag },
+  { id: "cells", kind: "simple", en: "Cells", ja: "セル", frag: cellsFrag },
+  { id: "veins", kind: "simple", en: "Veins", ja: "葉脈", frag: veinsFrag },
+  { id: "froth", kind: "simple", en: "Froth", ja: "泡", frag: frothFrag },
 ];
 
 /** Every id including the solid "off" option, in picker order. */
 export const SHADER_IDS: ShaderId[] = ["off", ...SHADERS.map((s) => s.id)];
 
 /** Default wallpaper used when nothing is stored yet. */
-export const DEFAULT_SHADER: ShaderId = "ink";
+export const DEFAULT_SHADER: ShaderId = "hex";
 
 /** Localised label for the "off" (solid background) option. */
 export const OFF_LABEL = { en: "Off", ja: "オフ" } as const;

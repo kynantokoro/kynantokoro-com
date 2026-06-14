@@ -31,7 +31,7 @@ type Compiled = CompiledSimple | CompiledFeedback;
  * Persistent interactive shader wallpaper.
  *
  * Rendered once inside the root layout so its WebGL context, animation clock
- * and (for the "ink" feedback shader) simulation textures survive client-side
+ * and any feedback-shader simulation textures survive client-side
  * navigation — the background never resets between pages. The canvas is fixed
  * behind all content with `pointer-events: none`; pointer interaction is read
  * from window-level listeners so links and scrolling keep working.
@@ -139,7 +139,11 @@ export default function ShaderBackground() {
     // ---- canvas sizing -----------------------------------------------------
     let cw = 0;
     let ch = 0;
+    let cssW = 0; // canvas CSS size, used to normalize pointer coordinates
+    let cssH = 0;
     function resize() {
+      cssW = canvas!.clientWidth;
+      cssH = canvas!.clientHeight;
       const dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
       const w = Math.max(1, Math.floor(canvas!.clientWidth * dpr));
       const h = Math.max(1, Math.floor(canvas!.clientHeight * dpr));
@@ -202,13 +206,13 @@ export default function ShaderBackground() {
     let click = { x: 0.5, y: 0.5, t: -100 };
 
     const onMove = (e: PointerEvent) => {
-      tmx = e.clientX / window.innerWidth;
-      tmy = 1 - e.clientY / window.innerHeight;
+      tmx = e.clientX / (cssW || window.innerWidth);
+      tmy = 1 - e.clientY / (cssH || window.innerHeight);
       activity = 1;
     };
     const onDown = (e: PointerEvent) => {
-      const x = e.clientX / window.innerWidth;
-      const y = 1 - e.clientY / window.innerHeight;
+      const x = e.clientX / (cssW || window.innerWidth);
+      const y = 1 - e.clientY / (cssH || window.innerHeight);
       ripples.push({ x, y, t: timeSec });
       if (ripples.length > MAX_RIPPLES) ripples.shift();
       click = { x, y, t: timeSec };

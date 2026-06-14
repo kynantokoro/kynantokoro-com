@@ -69,7 +69,15 @@ html.dark body {
    there is never a flash before/if WebGL paints. */
 .shader-bg {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Stable large-viewport height so the canvas does NOT resize when the
+     mobile browser's URL/search bar shows or hides on scroll — that resize
+     is what made the wallpaper pattern shift. lvh ignores the URL bar; the
+     100vh line is a fallback for browsers without lvh. */
+  height: 100vh;
+  height: 100lvh;
   z-index: -1;
   pointer-events: none;
   background: #f5f6f8;
