@@ -199,6 +199,8 @@ export default function ShaderBackground() {
     let tmy = 0.5; // target mouse (normalised, y-up)
     let smx = 0.5;
     let smy = 0.5; // smoothed mouse
+    let lightX = 0.5; // slow-follow light position (frosted-glass bulb)
+    let lightY = 0.5;
     let vx = 0;
     let vy = 0; // smoothed velocity
     let activity = 0;
@@ -250,6 +252,8 @@ export default function ShaderBackground() {
       if (t) g.uniform1f(t, timeSec);
       const m = u("uMouse");
       if (m) g.uniform2f(m, smx, smy);
+      const lt = u("uLight");
+      if (lt) g.uniform2f(lt, lightX, lightY);
       const mv = u("uMouseVel");
       if (mv) g.uniform2f(mv, vx, vy);
       const th = u("uTheme");
@@ -294,6 +298,10 @@ export default function ShaderBackground() {
       smy += (tmy - smy) * k;
       vx = dt > 0 ? (smx - px) / dt : 0;
       vy = dt > 0 ? (smy - py) / dt : 0;
+      // The bulb eases toward the cursor much more slowly than the pointer.
+      const kl = Math.min(1, dt * 1.6);
+      lightX += (tmx - lightX) * kl;
+      lightY += (tmy - lightY) * kl;
       const vlen = Math.hypot(vx, vy);
       if (vlen > 3) {
         vx *= 3 / vlen;
