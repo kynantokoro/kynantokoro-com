@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useShader } from "../contexts/shader-context";
-import { getShaderDef, VERTEX_SRC, type ShaderDef } from "../lib/shaders";
+import { getShaderDef, PARAM_DEFS, VERTEX_SRC, type ShaderDef } from "../lib/shaders";
 
 const MAX_RIPPLES = 8;
 const RIPPLE_LIFE = 2.6; // seconds
@@ -37,7 +37,7 @@ type Compiled = CompiledSimple | CompiledFeedback;
  * from window-level listeners so links and scrolling keep working.
  */
 export default function ShaderBackground() {
-  const { shader, accentHue } = useShader();
+  const { shader, accentHue, params } = useShader();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Live values the render loop reads without re-running the setup effect.
@@ -45,6 +45,8 @@ export default function ShaderBackground() {
   shaderRef.current = shader;
   const hueRef = useRef(accentHue);
   hueRef.current = accentHue;
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
 
   // Lets the [shader] effect restart the loop after it parks itself on "off".
   const kickRef = useRef<(() => void) | null>(null);
@@ -264,6 +266,11 @@ export default function ShaderBackground() {
       if (a) g.uniform1f(a, Math.min(1, activity));
       const mo = u("uMotion");
       if (mo) g.uniform1f(mo, motion);
+      // Live-tunable look parameters (?tune slider panel).
+      for (const dParam of PARAM_DEFS) {
+        const loc = u(dParam.uniform);
+        if (loc) g.uniform1f(loc, paramsRef.current[dParam.key]);
+      }
     }
 
     // ---- render loop -------------------------------------------------------

@@ -14,6 +14,7 @@ import type { Route } from "./+types/root";
 import "./app.css";
 import { ShaderProvider } from "./contexts/shader-context";
 import ShaderBackground from "./components/ShaderBackground";
+import ShaderTunePanel from "./components/ShaderTunePanel";
 
 // No loader needed - theme is managed client-side with localStorage
 
@@ -84,6 +85,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <ShaderProvider>
           <ShaderBackground />
           {children}
+          <ShaderTunePanel />
         </ShaderProvider>
         <ScrollRestoration
           getKey={(location) => {
