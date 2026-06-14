@@ -1,11 +1,11 @@
 import type { Route } from "./+types/tags";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useNavigate, useRouteLoaderData, useSearchParams } from "react-router";
 import { useLanguage } from "../contexts/language-context";
+import type { loader as languageLayoutLoader } from "./language-layout";
 import { createSanityClient, queries, type SanityEnv } from '../lib/sanity';
 import { aggregateTags, type TagEntry } from '../lib/tags';
 import { buildBubbleNodes, parseTagLayout, MAP_WIDTH, MAP_HEIGHT, type TagLayout } from '../lib/tagLayout';
-import TagEntriesOverlay from '../components/tag-search/TagEntriesOverlay';
 import tagLayoutData from '../data/tag-layout.json';
 
 // Lazy so d3 + the map only load when the bubble view is actually shown.
@@ -48,12 +48,13 @@ export default function Tags({ loaderData }: Route.ComponentProps) {
   const { language } = useLanguage();
   const lang = language === 'ja' ? 'ja' : 'en';
   const { grouped, layout } = loaderData;
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const languageLayoutData = useRouteLoaderData<typeof languageLayoutLoader>('routes/language-layout');
+  const isMobileUA = languageLayoutData?.isMobileUA ?? false;
 
   const view = searchParams.get('view') === 'list' ? 'list' : 'bubbles';
-  const selectedTag = searchParams.get('tag');
-  // The bubble map / overlay are client-only enhancements; SSR & no-JS get a
-  // complete static list of tags + their posts.
+  // The bubble map is a client-only enhancement; SSR & no-JS get the list.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -66,27 +67,11 @@ export default function Tags({ loaderData }: Route.ComponentProps) {
     [grouped, layout]
   );
 
-  const selectTag = (tag: string) =>
-    setSearchParams(
-      (prev) => {
-        const p = new URLSearchParams(prev);
-        p.set('tag', tag);
-        return p;
-      },
-      { preventScrollReset: true }
-    );
-  const clearTag = () =>
-    setSearchParams(
-      (prev) => {
-        const p = new URLSearchParams(prev);
-        p.delete('tag');
-        return p;
-      },
-      { preventScrollReset: true }
-    );
+  // Selecting a tag closes the explorer and filters the home feed by that tag.
+  const tagHref = (tag: string) => `/${lang}?tag=${encodeURIComponent(tag)}`;
+  const goToTag = (tag: string) => navigate(tagHref(tag), { viewTransition: !isMobileUA });
 
   const showBubbles = mounted && view === 'bubbles';
-  const showSimpleList = mounted && view === 'list';
   const otherView = view === 'bubbles' ? 'list' : 'bubbles';
 
   return (
@@ -98,6 +83,7 @@ export default function Tags({ loaderData }: Route.ComponentProps) {
         </h1>
         <Link
           to={`/${lang}`}
+          viewTransition={!isMobileUA}
           aria-label={lang === 'ja' ? '閉じる' : 'Close'}
           className="focus-invert rounded-full w-9 h-9 flex items-center justify-center text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
         >
@@ -117,16 +103,17 @@ export default function Tags({ loaderData }: Route.ComponentProps) {
           </div>
         ) : showBubbles ? (
           <Suspense fallback={<div className="w-full h-full" />}>
-            <TagBubbleMap nodes={nodes} language={lang} onSelect={selectTag} />
+            <TagBubbleMap nodes={nodes} language={lang} onSelect={goToTag} />
           </Suspense>
-        ) : showSimpleList ? (
+        ) : (
           <div className="h-full overflow-auto px-6 py-6">
             <ul className="max-w-xl mx-auto divide-y divide-gray-200 dark:divide-gray-800">
               {tags.map((tag) => (
                 <li key={tag}>
-                  <button
-                    onClick={() => selectTag(tag)}
-                    className="focus-invert w-full flex items-baseline justify-between gap-4 py-3 text-left group"
+                  <Link
+                    to={tagHref(tag)}
+                    viewTransition={!isMobileUA}
+                    className="focus-invert flex items-baseline justify-between gap-4 py-3 group"
                   >
                     <span className="text-lg font-serif text-gray-900 dark:text-gray-100 group-hover:opacity-60 transition-opacity">
                       {`#${tag}`}
@@ -134,46 +121,10 @@ export default function Tags({ loaderData }: Route.ComponentProps) {
                     <span className="text-sm font-serif text-gray-500 dark:text-gray-400">
                       {grouped[tag].count}
                     </span>
-                  </button>
+                  </Link>
                 </li>
               ))}
             </ul>
-          </div>
-        ) : (
-          // SSR / no-JS fallback: full static list of tags + their posts.
-          <div className="h-full overflow-auto px-6 py-6">
-            <div className="max-w-2xl mx-auto">
-              {tags.map((tag) => (
-                <section key={tag} className="mb-10">
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 font-serif">
-                    {`#${tag}`}{' '}
-                    <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
-                      ({grouped[tag].count})
-                    </span>
-                  </h2>
-                  <ul className="mt-3 space-y-2">
-                    {grouped[tag].entries.map((entry) => {
-                      const title =
-                        entry.title?.[lang] || entry.title?.en || entry.title?.ja || 'Untitled';
-                      const summary = entry.summary?.[lang] || '';
-                      return (
-                        <li key={entry.slug}>
-                          <Link
-                            to={`/${lang}/entry/${entry.slug}`}
-                            className="text-gray-800 dark:text-gray-200 font-serif hover:opacity-60"
-                          >
-                            {title}
-                          </Link>
-                          {summary && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 font-serif">{summary}</p>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </section>
-              ))}
-            </div>
           </div>
         )}
 
@@ -181,6 +132,7 @@ export default function Tags({ loaderData }: Route.ComponentProps) {
         {tags.length > 0 && (
           <Link
             to={`?view=${otherView}`}
+            viewTransition={!isMobileUA}
             preventScrollReset
             className="focus-invert absolute bottom-6 right-6 inline-flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 text-sm font-serif hover:opacity-90 transition-opacity"
           >
@@ -204,16 +156,6 @@ export default function Tags({ loaderData }: Route.ComponentProps) {
           </Link>
         )}
       </div>
-
-      {/* Modal overlay (JS): the selected tag's posts */}
-      {mounted && selectedTag && grouped[selectedTag] && (
-        <TagEntriesOverlay
-          tag={selectedTag}
-          group={grouped[selectedTag]}
-          language={lang}
-          onClose={clearTag}
-        />
-      )}
     </div>
   );
 }

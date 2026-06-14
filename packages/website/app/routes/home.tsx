@@ -1,5 +1,5 @@
 import type { Route } from "./+types/home";
-import { Link } from "react-router";
+import { Link, useSearchParams, useRouteLoaderData } from "react-router";
 import { useLanguage } from "../contexts/language-context";
 import EntryCard from "../components/EntryCard";
 import Header from "../components/Header";
@@ -7,6 +7,7 @@ import HomeHeader from "../components/HomeHeader";
 import { createSanityClient, queries, type SanityEnv } from '../lib/sanity';
 import { type TagEntry } from '../lib/tags';
 import { blogLd } from '../lib/jsonLd';
+import type { loader as languageLayoutLoader } from "./language-layout";
 
 export function meta({ params, data }: Route.MetaArgs) {
   const title = "Kynan Tokoro";
@@ -92,6 +93,14 @@ type Entry = {
 export default function Home({ loaderData }: Route.ComponentProps) {
   const { language } = useLanguage();
   const { entries, profileHue } = loaderData;
+  const [searchParams] = useSearchParams();
+  const activeTag = searchParams.get('tag');
+  const languageLayoutData = useRouteLoaderData<typeof languageLayoutLoader>('routes/language-layout');
+  const isMobileUA = languageLayoutData?.isMobileUA ?? false;
+
+  const visibleEntries = activeTag
+    ? entries.filter((e: Entry) => (e.metadata.tags || []).includes(activeTag))
+    : entries;
 
   return (
     <div className="min-h-screen">
@@ -102,12 +111,28 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       <section className="pb-8 px-8">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between gap-4 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-serif font-semibold text-gray-900 dark:text-gray-100">
-              {language === 'ja' ? '記事' : 'Posts'}
-            </h2>
+            <div className="flex items-center gap-3 min-w-0">
+              <h2 className="text-lg font-serif font-semibold text-gray-900 dark:text-gray-100 shrink-0">
+                {language === 'ja' ? '記事' : 'Posts'}
+              </h2>
+              {activeTag && (
+                <Link
+                  to={`/${language}`}
+                  viewTransition={!isMobileUA}
+                  aria-label={language === 'ja' ? `タグ絞り込みを解除: #${activeTag}` : `Clear tag filter: #${activeTag}`}
+                  className="focus-invert inline-flex items-center gap-1 min-w-0 px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-serif text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <span className="truncate">{`#${activeTag}`}</span>
+                  <svg className="w-3.5 h-3.5 shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </Link>
+              )}
+            </div>
             <Link
               to={`/${language}/tags`}
-              className="focus-invert inline-flex items-center gap-2 text-sm font-serif text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+              viewTransition={!isMobileUA}
+              className="focus-invert inline-flex items-center gap-2 text-sm font-serif text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors shrink-0"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
@@ -119,8 +144,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             </Link>
           </div>
           <div className="space-y-0">
-            {entries.length > 0 ? (
-              entries.map((entry: Entry) => (
+            {visibleEntries.length > 0 ? (
+              visibleEntries.map((entry: Entry) => (
                 <EntryCard
                   key={entry.slug}
                   slug={entry.slug}
@@ -131,8 +156,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                 />
               ))
             ) : (
-              <p className="text-gray-600 dark:text-gray-400 font-serif">
-                {language === 'ja' ? 'まだ投稿がありません。' : 'No posts yet.'}
+              <p className="text-gray-600 dark:text-gray-400 font-serif py-4">
+                {activeTag
+                  ? (language === 'ja' ? `#${activeTag} の記事はありません。` : `No posts tagged #${activeTag}.`)
+                  : (language === 'ja' ? 'まだ投稿がありません。' : 'No posts yet.')}
               </p>
             )}
           </div>
