@@ -80,7 +80,7 @@ export default function TagBubbleMap({ nodes, language, onSelect }: TagBubbleMap
     <svg
       ref={svgRef}
       viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-      className="w-full h-[70vh] touch-none select-none rounded-xl bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-800"
+      className="w-full h-full touch-none select-none"
       role="group"
       aria-label={language === 'ja' ? 'タグのバブルマップ' : 'Tag bubble map'}
     >
