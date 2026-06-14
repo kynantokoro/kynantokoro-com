@@ -6,7 +6,6 @@ import type { loader as languageLayoutLoader } from '../routes/language-layout';
 
 interface EntryCardProps {
   slug: string;
-  week?: number;
   title: {
     en: string;
     ja: string;
@@ -15,10 +14,9 @@ interface EntryCardProps {
   emoji?: number;
   imageSeed?: number;
   tags: string[];
-  contentType: 'weekly-project' | 'blog';
 }
 
-export default function EntryCard({ slug, week, title, date, emoji, imageSeed, tags, contentType }: EntryCardProps) {
+export default function EntryCard({ slug, title, date, emoji, imageSeed, tags }: EntryCardProps) {
   const { language } = useLanguage();
   const [searchParams] = useSearchParams();
   const languageLayoutData = useRouteLoaderData<typeof languageLayoutLoader>('routes/language-layout');
@@ -54,13 +52,6 @@ export default function EntryCard({ slug, week, title, date, emoji, imageSeed, t
 
         {/* Content on RIGHT side */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-2 mb-1">
-            {contentType === 'weekly-project' && week && (
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400 font-serif">
-                Week {week}
-              </span>
-            )}
-          </div>
           <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 font-serif transition-opacity duration-200 group-hover:opacity-60">
             {displayTitle}
           </h2>
