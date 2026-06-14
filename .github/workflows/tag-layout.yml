@@ -1,0 +1,91 @@
+name: Regenerate tag layout
+
+# Regenerates packages/website/app/data/tag-layout.json (the semantic clustering
+# behind the Tag Search bubble map). The script only calls Claude when the *set*
+# of tags changed (hash mismatch), then commits the result. Counts/bubble sizes
+# are computed at runtime, so day-to-day posting does not trigger a regeneration.
+#
+# Required configuration:
+#   vars.GH_APP_ID, secrets.GH_APP_PRIVATE_KEY  (existing app, for checkout/push)
+#   vars.SANITY_STUDIO_PROJECT_ID, vars.SANITY_STUDIO_DATASET  (existing)
+#   secrets.SANITY_TOKEN        (read token; optional for published-only datasets)
+#   secrets.ANTHROPIC_API_KEY   (used only when the tag set changed)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 18 * * *' # daily
+  repository_dispatch:
+    types: [sanity-content-changed]
+
+concurrency:
+  group: tag-layout
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          repositories: |
+            kynantokoro-com
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Regenerate tag layout
+        run: pnpm --filter website exec tsx scripts/generate-tag-layout.ts
+        env:
+          SANITY_PROJECT_ID: ${{ vars.SANITY_STUDIO_PROJECT_ID }}
+          SANITY_DATASET: ${{ vars.SANITY_STUDIO_DATASET }}
+          SANITY_TOKEN: ${{ secrets.SANITY_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Commit if changed
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: |
+          if [[ -n "$(git status --porcelain packages/website/app/data/tag-layout.json)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add packages/website/app/data/tag-layout.json
+            git commit -m "chore: regenerate tag-layout.json [skip ci]"
+            git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:${{ github.ref_name }}"
+            echo "Committed regenerated tag layout."
+          else
+            echo "No changes to tag-layout.json."
+          fi
