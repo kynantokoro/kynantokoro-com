@@ -4,6 +4,7 @@ export default [
   index("routes/root-redirect.tsx"),
   route("api/theme", "routes/api.theme.ts"),
   route("sitemap.xml", "routes/sitemap[.]xml.tsx"),
+  route(":lang/entry/:slug.md", "routes/entry-md.tsx"),
   layout("routes/language-layout.tsx", [
     route(":lang", "routes/index.tsx", [
       index("routes/home.tsx"),
