@@ -5,10 +5,12 @@
 // reacts to the pointer and to clicks. Persistence across page navigation is
 // handled by the renderer, which lives in the always-mounted root layout.
 //
-// The lineup is a family of organic, cellular wallpapers built around the
-// honeycomb: a clean hex lattice plus four organic variations (a warped
-// "molten" honeycomb, irregular Voronoi cells, a vein/crack network and soft
-// foam bubbles).
+// The lineup is a honeycomb family. Two render the lattice itself (a clean
+// hex grid and a molten, noise-warped one); the rest fill the cells with
+// colour that *propagates* across the comb — radiating pulses, a directional
+// flow, a drifting bloom and a twinkling ember field. All cell fills are
+// sampled at the cell centre so colour spreads cell-by-cell, like the
+// honeycomb's click ripple.
 //
 // Contrast budget: all shaders compose their pattern over the page background
 // with a shared, *measured* intensity (budget()). The budget is the largest
@@ -21,10 +23,10 @@
 //   uResolution, uTime, uMouse (0..1, y-up), uMouseVel, uTheme (0 light / 1
 //   dark), uHue (accent hue in degrees), uActive (recent pointer activity
 //   0..1), uMotion (0 when prefers-reduced-motion, else 1)
-// plus helpers: hash21/vnoise/fbm/flowField/hsv2rgb and the theming helpers
-// baseBg()/accentCol()/compose()/budget().
+// plus helpers: hash21/vnoise/fbm/hsv2rgb, hexDist/hexCell and the theming
+// helpers baseBg()/accentCol()/compose()/budget().
 
-export type ShaderId = "off" | "hex" | "warp" | "cells" | "veins" | "froth";
+export type ShaderId = "off" | "hex" | "warp" | "pulse" | "flow" | "bloom" | "ember";
 
 export interface ShaderMeta {
   id: Exclude<ShaderId, "off">;
@@ -86,6 +88,17 @@ vec3 hsv2rgb(vec3 c){
   return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
 float hexDist(vec2 p){ p = abs(p); return max(dot(p, normalize(vec2(1.0, 1.7320508))), p.x); }
+// Hexagonal tiling. Input is grid-space (p * scale). Returns the cell centre
+// (xy, still in grid space) and the distance to the cell edge (z, ~0.5 at the
+// border). Divide the centre by the same scale to get back to p-space.
+vec3 hexCell(vec2 gp){
+  vec2 r = vec2(1.0, 1.7320508);
+  vec2 hh = r * 0.5;
+  vec2 a = mod(gp, r) - hh;
+  vec2 b = mod(gp - hh, r) - hh;
+  vec2 gv = dot(a, a) < dot(b, b) ? a : b;
+  return vec3(gp - gv, hexDist(gv));
+}
 // Base page background. Light: near-white (~gray-50). Dark: tailwind gray-900.
 vec3 baseBg(){ return mix(vec3(0.961, 0.965, 0.973), vec3(0.067, 0.094, 0.153), uTheme); }
 // Accent derived from the key-visual hue.
@@ -115,8 +128,8 @@ void main(){
 `;
 
 // --- Hex — a clean honeycomb lattice --------------------------------------
-// Thin glowing rims; cells near the cursor light up and clicks send a
-// brightening ring through the lattice.
+// Hairline rims; cells near the cursor light up and clicks send a brightening
+// ring propagating through the lattice.
 const hexFrag = `${HEAD}
 uniform vec2  uRipplePos[8];
 uniform float uRippleAge[8];
@@ -127,18 +140,11 @@ void main(){
   vec2 p = uv * vec2(ar, 1.0);
   vec2 m = uMouse * vec2(ar, 1.0);
   float scale = 8.0;
-  vec2 gp = p * scale;
 
-  vec2 r = vec2(1.0, 1.7320508);
-  vec2 hh = r * 0.5;
-  vec2 a = mod(gp, r) - hh;
-  vec2 b = mod(gp - hh, r) - hh;
-  vec2 gv = dot(a, a) < dot(b, b) ? a : b;
-  vec2 id = (gp - gv) / scale;
-
-  float hd = hexDist(gv);
-  float aa = fwidth(hd) * 1.2;
-  float border = smoothstep(0.5 - 0.015 - aa, 0.5 - 0.015, hd);
+  vec3 hc = hexCell(p * scale);
+  vec2 id = hc.xy / scale;
+  float aa = fwidth(hc.z) * 1.2;
+  float rim = smoothstep(0.5 - 0.005 - aa, 0.5 - 0.005, hc.z);
 
   float hi = exp(-length(id - m) * 3.5) * (0.3 + 0.8 * uActive);
 
@@ -150,14 +156,14 @@ void main(){
     burst += smoothstep(0.08, 0.0, abs(length(id - rc) - age * 0.45)) * exp(-age * 1.2);
   }
 
-  float pattern = clamp(border + hi * 0.55 + burst, 0.0, 1.0);
+  float pattern = clamp(rim + hi * 0.55 + burst, 0.0, 1.0);
   fragColor = vec4(compose(pattern, budget()), 1.0);
 }
 `;
 
 // --- Warp — a molten honeycomb --------------------------------------------
-// The same hex lattice but its coordinates are domain-warped by drifting
-// noise so the comb flows and melts; the cursor adds a local swirl.
+// The hex lattice with coordinates domain-warped by drifting noise so the comb
+// flows and melts; the cursor adds a local swirl.
 const warpFrag = `${HEAD}
 uniform vec2  uRipplePos[8];
 uniform float uRippleAge[8];
@@ -173,16 +179,9 @@ void main(){
   wp += 0.12 * normalize(p - m + 1e-4) * exp(-length(p - m) * 2.2) * (0.4 + uActive);
 
   float scale = 8.0;
-  vec2 gp = wp * scale;
-  vec2 r = vec2(1.0, 1.7320508);
-  vec2 hh = r * 0.5;
-  vec2 a = mod(gp, r) - hh;
-  vec2 b = mod(gp - hh, r) - hh;
-  vec2 gv = dot(a, a) < dot(b, b) ? a : b;
-
-  float hd = hexDist(gv);
-  float aa = fwidth(hd) * 1.2;
-  float border = smoothstep(0.5 - 0.02 - aa, 0.5 - 0.02, hd);
+  vec3 hc = hexCell(wp * scale);
+  float aa = fwidth(hc.z) * 1.2;
+  float rim = smoothstep(0.5 - 0.006 - aa, 0.5 - 0.006, hc.z);
 
   float burst = 0.0;
   for (int i = 0; i < 8; i++){
@@ -192,15 +191,15 @@ void main(){
     burst += smoothstep(0.07, 0.0, abs(length(p - rc) - age * 0.5)) * exp(-age * 1.2);
   }
 
-  float pattern = clamp(border + burst, 0.0, 1.0);
+  float pattern = clamp(rim + burst, 0.0, 1.0);
   fragColor = vec4(compose(pattern, budget()), 1.0);
 }
 `;
 
-// --- Cells — irregular Voronoi membranes ----------------------------------
-// Drifting cell points form an organic membrane network; the cursor repels
-// nearby points and clicks send a pulse outward.
-const cellsFrag = `${HEAD}
+// --- Pulse — sonar rings through the comb ---------------------------------
+// Concentric colour fronts radiate from the cursor, lighting whole cells as
+// they pass; clicks emit their own propagating rings.
+const pulseFrag = `${HEAD}
 uniform vec2  uRipplePos[8];
 uniform float uRippleAge[8];
 out vec4 fragColor;
@@ -209,46 +208,99 @@ void main(){
   float ar = uResolution.x / uResolution.y;
   vec2 p = uv * vec2(ar, 1.0);
   vec2 m = uMouse * vec2(ar, 1.0);
+  float scale = 8.0;
+
+  vec3 hc = hexCell(p * scale);
+  vec2 id = hc.xy / scale;
+  float aa = fwidth(hc.z) * 1.2;
+  float rim = smoothstep(0.5 - 0.006 - aa, 0.5 - 0.006, hc.z);
+
+  float dcur = length(id - m);
+  float wave = 0.5 + 0.5 * sin(dcur * 9.0 - uTime * 1.6);
+  float fill = smoothstep(0.55, 1.0, wave) * exp(-dcur * 0.5);
+
+  float burst = 0.0;
+  for (int i = 0; i < 8; i++){
+    float age = uRippleAge[i];
+    if (age < 0.0) continue;
+    vec2 rc = uRipplePos[i] * vec2(ar, 1.0);
+    float dd = length(id - rc);
+    burst += smoothstep(0.55, 1.0, 0.5 + 0.5 * sin(dd * 9.0 - age * 7.0)) * exp(-dd * 1.4) * exp(-age);
+  }
+
+  float pattern = clamp(rim * 0.7 + fill * 0.85 + burst, 0.0, 1.0);
+  fragColor = vec4(compose(pattern, budget()), 1.0);
+}
+`;
+
+// --- Flow — a directional colour sweep ------------------------------------
+// Bands of colour sweep diagonally across the comb, lit per cell; the cursor's
+// x position steers the direction.
+const flowFrag = `${HEAD}
+out vec4 fragColor;
+void main(){
+  vec2 uv = gl_FragCoord.xy / uResolution.xy;
+  float ar = uResolution.x / uResolution.y;
+  vec2 p = uv * vec2(ar, 1.0);
+  float scale = 8.0;
+
+  vec3 hc = hexCell(p * scale);
+  vec2 id = hc.xy / scale;
+  float aa = fwidth(hc.z) * 1.2;
+  float rim = smoothstep(0.5 - 0.006 - aa, 0.5 - 0.006, hc.z);
+
+  float ang = (uMouse.x - 0.5) * 3.1416 + uTime * 0.04;
+  vec2 dir = vec2(cos(ang), sin(ang));
+  float band = 0.5 + 0.5 * sin(dot(id, dir) * 4.0 - uTime * 1.0);
+  float fill = smoothstep(0.5, 1.0, band) * (0.7 + 0.6 * uActive);
+
+  float pattern = clamp(rim * 0.7 + fill * 0.8, 0.0, 1.0);
+  fragColor = vec4(compose(pattern, budget()), 1.0);
+}
+`;
+
+// --- Bloom — a drifting colour bloom --------------------------------------
+// Slow fBm decides which cells are coloured, so soft patches of colour migrate
+// across the comb; the cursor blooms nearby cells and clicks ripple outward.
+const bloomFrag = `${HEAD}
+uniform vec2  uRipplePos[8];
+uniform float uRippleAge[8];
+out vec4 fragColor;
+void main(){
+  vec2 uv = gl_FragCoord.xy / uResolution.xy;
+  float ar = uResolution.x / uResolution.y;
+  vec2 p = uv * vec2(ar, 1.0);
+  vec2 m = uMouse * vec2(ar, 1.0);
+  float scale = 8.0;
+
+  vec3 hc = hexCell(p * scale);
+  vec2 id = hc.xy / scale;
+  float aa = fwidth(hc.z) * 1.2;
+  float rim = smoothstep(0.5 - 0.006 - aa, 0.5 - 0.006, hc.z);
+
   float t = uTime * 0.06;
-  float scale = 5.0;
-  vec2 g = p * scale;
-  vec2 gi = floor(g);
-  vec2 gf = fract(g);
+  float v = fbm(id * 1.6 + vec2(t, -t));
+  float fill = smoothstep(0.5, 0.85, v);
+  fill = max(fill, exp(-length(id - m) * 2.5) * (0.3 + uActive));
 
-  float d1 = 8.0;
-  float d2 = 8.0;
-  for (int j = -1; j <= 1; j++){
-    for (int i = -1; i <= 1; i++){
-      vec2 o = vec2(float(i), float(j));
-      vec2 fp = vec2(hash21(gi + o), hash21(gi + o + 3.7));
-      vec2 pt = o + 0.5 + 0.45 * sin(t + 6.2831 * fp);
-      vec2 away = (gi + pt) / scale - m;
-      pt += normalize(away + 1e-4) * exp(-dot(away, away) * 5.0) * (0.05 + 0.2 * uActive) * scale;
-      vec2 rr = pt - gf;
-      float d = dot(rr, rr);
-      if (d < d1){ d2 = d1; d1 = d; } else if (d < d2){ d2 = d; }
-    }
-  }
-  float edge = sqrt(d2) - sqrt(d1);
-  float net = smoothstep(0.03, 0.0, edge);
-
-  float pulse = 0.0;
+  float burst = 0.0;
   for (int i = 0; i < 8; i++){
     float age = uRippleAge[i];
     if (age < 0.0) continue;
     vec2 rc = uRipplePos[i] * vec2(ar, 1.0);
-    pulse += exp(-length(p - rc) * 2.2) * exp(-age * 1.5) * 0.6;
+    float dd = length(id - rc);
+    burst += smoothstep(0.5, 1.0, 0.5 + 0.5 * sin(dd * 8.0 - age * 6.0)) * exp(-dd * 1.5) * exp(-age);
   }
 
-  float pattern = clamp(net + pulse, 0.0, 1.0);
+  float pattern = clamp(rim * 0.7 + fill * 0.8 + burst, 0.0, 1.0);
   fragColor = vec4(compose(pattern, budget()), 1.0);
 }
 `;
 
-// --- Veins — an organic vein / crack network ------------------------------
-// Voronoi edges on a heavily noise-warped field read like leaf veins or
-// dried cracks; the cursor bends the field locally and clicks brighten.
-const veinsFrag = `${HEAD}
+// --- Ember — a twinkling cell field ---------------------------------------
+// Each cell has its own slow twinkle phase, so sparse cells glow and fade like
+// embers; the cursor ignites the cells around it and clicks spark a ring.
+const emberFrag = `${HEAD}
 uniform vec2  uRipplePos[8];
 uniform float uRippleAge[8];
 out vec4 fragColor;
@@ -257,91 +309,27 @@ void main(){
   float ar = uResolution.x / uResolution.y;
   vec2 p = uv * vec2(ar, 1.0);
   vec2 m = uMouse * vec2(ar, 1.0);
-  float t = uTime * 0.04;
+  float scale = 8.0;
 
-  vec2 wp = p + 0.18 * vec2(fbm(p * 2.2 + t), fbm(p * 2.2 + 7.3 - t));
-  wp += 0.12 * normalize(p - m + 1e-4) * exp(-length(p - m) * 2.5) * (0.3 + uActive);
+  vec3 hc = hexCell(p * scale);
+  vec2 id = hc.xy / scale;
+  float aa = fwidth(hc.z) * 1.2;
+  float rim = smoothstep(0.5 - 0.006 - aa, 0.5 - 0.006, hc.z);
 
-  float scale = 4.5;
-  vec2 g = wp * scale;
-  vec2 gi = floor(g);
-  vec2 gf = fract(g);
+  float seed = hash21(hc.xy + 0.5);
+  float tw = 0.5 + 0.5 * sin(uTime * 0.8 + seed * 6.2831);
+  float fill = smoothstep(0.78, 1.0, tw);
+  fill = max(fill, smoothstep(0.35, 0.0, length(id - m)) * (0.3 + uActive));
 
-  float d1 = 8.0;
-  float d2 = 8.0;
-  for (int j = -1; j <= 1; j++){
-    for (int i = -1; i <= 1; i++){
-      vec2 o = vec2(float(i), float(j));
-      vec2 fp = vec2(hash21(gi + o), hash21(gi + o + 3.7));
-      vec2 pt = o + 0.5 + 0.8 * (fp - 0.5);
-      vec2 rr = pt - gf;
-      float d = dot(rr, rr);
-      if (d < d1){ d2 = d1; d1 = d; } else if (d < d2){ d2 = d; }
-    }
-  }
-  float edge = sqrt(d2) - sqrt(d1);
-  float veins = smoothstep(0.022, 0.0, edge);
-
-  float glow = 0.0;
+  float burst = 0.0;
   for (int i = 0; i < 8; i++){
     float age = uRippleAge[i];
     if (age < 0.0) continue;
     vec2 rc = uRipplePos[i] * vec2(ar, 1.0);
-    glow += veins * exp(-length(p - rc) * 2.0) * exp(-age * 1.2);
+    burst += smoothstep(0.08, 0.0, abs(length(id - rc) - age * 0.45)) * exp(-age * 1.2);
   }
 
-  float pattern = clamp(veins * 0.9 + glow, 0.0, 1.0);
-  fragColor = vec4(compose(pattern, budget()), 1.0);
-}
-`;
-
-// --- Froth — soft foam bubbles --------------------------------------------
-// Each Voronoi cell hosts a softly breathing bubble with a bright rim;
-// bubbles swell toward the cursor and clicks pop a pulse.
-const frothFrag = `${HEAD}
-uniform vec2  uRipplePos[8];
-uniform float uRippleAge[8];
-out vec4 fragColor;
-void main(){
-  vec2 uv = gl_FragCoord.xy / uResolution.xy;
-  float ar = uResolution.x / uResolution.y;
-  vec2 p = uv * vec2(ar, 1.0);
-  vec2 m = uMouse * vec2(ar, 1.0);
-  float t = uTime * 0.08;
-  float scale = 6.0;
-  vec2 g = p * scale;
-  vec2 gi = floor(g);
-  vec2 gf = fract(g);
-
-  float d1 = 8.0;
-  vec2 nearPt = vec2(0.0);
-  vec2 nearCell = vec2(0.0);
-  for (int j = -1; j <= 1; j++){
-    for (int i = -1; i <= 1; i++){
-      vec2 o = vec2(float(i), float(j));
-      vec2 fp = vec2(hash21(gi + o), hash21(gi + o + 3.7));
-      vec2 pt = o + 0.5 + 0.35 * sin(t * 0.8 + 6.2831 * fp);
-      vec2 rr = pt - gf;
-      float d = dot(rr, rr);
-      if (d < d1){ d1 = d; nearPt = (gi + pt) / scale; nearCell = gi + o; }
-    }
-  }
-  float r1 = sqrt(d1);
-  float ch = hash21(nearCell);
-  float radius = 0.34 + 0.05 * sin(t + ch * 6.2831);
-  radius += 0.10 * exp(-length(nearPt - m) * 3.0) * (0.3 + uActive);
-  float rim = smoothstep(0.025, 0.0, abs(r1 - radius));
-  float fill = smoothstep(radius, radius - 0.05, r1) * 0.16;
-
-  float pulse = 0.0;
-  for (int i = 0; i < 8; i++){
-    float age = uRippleAge[i];
-    if (age < 0.0) continue;
-    vec2 rc = uRipplePos[i] * vec2(ar, 1.0);
-    pulse += smoothstep(0.06, 0.0, abs(length(p - rc) - age * 0.5)) * exp(-age * 1.2);
-  }
-
-  float pattern = clamp(rim * 0.95 + fill + pulse, 0.0, 1.0);
+  float pattern = clamp(rim * 0.6 + fill + burst, 0.0, 1.0);
   fragColor = vec4(compose(pattern, budget()), 1.0);
 }
 `;
@@ -350,9 +338,10 @@ void main(){
 export const SHADERS: ShaderDef[] = [
   { id: "hex", kind: "simple", en: "Hex", ja: "ハニカム", frag: hexFrag },
   { id: "warp", kind: "simple", en: "Warp", ja: "ゆらぎ", frag: warpFrag },
-  { id: "cells", kind: "simple", en: "Cells", ja: "セル", frag: cellsFrag },
-  { id: "veins", kind: "simple", en: "Veins", ja: "葉脈", frag: veinsFrag },
-  { id: "froth", kind: "simple", en: "Froth", ja: "泡", frag: frothFrag },
+  { id: "pulse", kind: "simple", en: "Pulse", ja: "脈動", frag: pulseFrag },
+  { id: "flow", kind: "simple", en: "Flow", ja: "流れ", frag: flowFrag },
+  { id: "bloom", kind: "simple", en: "Bloom", ja: "開花", frag: bloomFrag },
+  { id: "ember", kind: "simple", en: "Ember", ja: "ともしび", frag: emberFrag },
 ];
 
 /** Every id including the solid "off" option, in picker order. */
