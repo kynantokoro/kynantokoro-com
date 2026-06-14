@@ -171,7 +171,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                 />
               ))
             ) : (
-              <p className="text-gray-600 dark:text-gray-400 font-serif">
+              <p className="text-gray-600 dark:text-gray-300 font-serif">
                 {language === 'ja' ? 'まだ投稿がありません。' : 'No posts yet.'}
               </p>
             )}

@@ -102,11 +102,11 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
           <div className="flex items-baseline gap-3 mb-2">
             {/* Show week number only for Weekly Project entries */}
             {isWeeklyProject && entry.metadata.week && (
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400 font-serif">
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-300 font-serif">
                 Week {entry.metadata.week}
               </span>
             )}
-            <span className="text-xs text-gray-400 dark:text-gray-500 font-serif">
+            <span className="text-xs text-gray-400 dark:text-gray-400 font-serif">
               {new Date(entry.metadata.date).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US', {
                 year: 'numeric',
                 month: 'long',
@@ -155,7 +155,7 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
                 components={portableTextComponents}
               />
             ) : (
-              <p className="text-gray-600 dark:text-gray-400 font-serif">
+              <p className="text-gray-600 dark:text-gray-300 font-serif">
                 Unable to render content
               </p>
             )}

@@ -9,10 +9,10 @@ export default function Footer({ className = '' }: FooterProps) {
     <footer className={`bg-transparent ${className}`}>
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="text-center space-y-2">
-          <p className="text-sm text-gray-600 dark:text-gray-400 font-serif">
+          <p className="text-sm text-gray-600 dark:text-gray-300 font-serif">
             © {currentYear} Kynan Tokoro. All rights reserved.
           </p>
-          <p className="text-xs text-gray-600 dark:text-gray-400 font-serif">
+          <p className="text-xs text-gray-600 dark:text-gray-300 font-serif">
             <a
               href="https://github.com/kynantokoro/kynantokoro-com"
               target="_blank"

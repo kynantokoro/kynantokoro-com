@@ -56,7 +56,7 @@ export default function EntryCard({ slug, week, title, date, emoji, imageSeed, t
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2 mb-1">
             {contentType === 'weekly-project' && week && (
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400 font-serif">
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-300 font-serif">
                 Week {week}
               </span>
             )}
@@ -64,7 +64,7 @@ export default function EntryCard({ slug, week, title, date, emoji, imageSeed, t
           <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 font-serif transition-opacity duration-200 group-hover:opacity-60">
             {displayTitle}
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 font-serif mt-1 transition-opacity duration-200 group-hover:opacity-60">
+          <p className="text-sm text-gray-500 dark:text-gray-300 font-serif mt-1 transition-opacity duration-200 group-hover:opacity-60">
             {new Date(date).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US', {
               year: 'numeric',
               month: 'long',

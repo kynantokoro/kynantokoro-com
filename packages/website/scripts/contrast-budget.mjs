@@ -5,9 +5,11 @@
 // We pick, per theme, the LARGEST compose intensity such that the worst-case
 // background pixel (pattern = 1, over the worst accent hue) still meets WCAG
 // AA (4.5:1) against the lightest *functional* text colour:
-//   light mode -> gray-600 (#4b5563)   dark mode -> gray-400 (#9ca3af)
-// Decorative meta text (gray-500/400 dates & tags) is already below AA on the
-// site's solid background, so it is reported but not used as the constraint.
+//   light mode -> gray-600 (#4b5563)   dark mode -> gray-300 (#d1d5db)
+// In dark mode the site's secondary UI text is lifted to gray-300, which lets
+// the wallpaper run brighter while keeping that text at AA. Decorative meta
+// (dates & tags) is already below AA on the solid background, so it is
+// reported but not used as the constraint.
 //
 // Run: node packages/website/scripts/contrast-budget.mjs
 
@@ -88,7 +90,7 @@ function solveBudget(theme, textLum) {
 }
 
 for (const theme of ["light", "dark"]) {
-  const guardName = theme === "light" ? "gray-600" : "gray-400";
+  const guardName = theme === "light" ? "gray-600" : "gray-300";
   const budget = solveBudget(theme, grayLum[guardName]);
   const { lum, hue } = worstBgLum(theme, budget);
   console.log(`\n=== ${theme.toUpperCase()} (guard: ${guardName}, target ${TARGET}:1) ===`);

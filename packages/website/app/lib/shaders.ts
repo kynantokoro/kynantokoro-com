@@ -10,8 +10,10 @@
 // with a shared, *measured* intensity (budget()). The budget is the largest
 // value that keeps the lightest functional text colour at WCAG AA (4.5:1)
 // against the worst-case background pixel, per theme. See
-// scripts/contrast-budget.mjs for the calculation (light 0.288 / dark 0.246,
-// applied here with a hair of margin as 0.28 / 0.24).
+// scripts/contrast-budget.mjs. Guards: light -> gray-600, dark -> gray-300
+// (dark secondary UI text is lifted to gray-300 so the wallpaper can be
+// brighter while staying AA). Measured limits 0.288 / 0.495, applied with a
+// hair of margin as 0.28 / 0.49.
 //
 // All shaders share a common GLSL preamble (`HEAD`) that exposes:
 //   uResolution, uTime, uMouse (0..1, y-up), uMouseVel, uTheme (0 light / 1
@@ -20,7 +22,7 @@
 // plus helpers: hash21/vnoise/fbm/flowField/hsv2rgb and the theming helpers
 // baseBg()/accentCol()/compose()/budget().
 
-export type ShaderId = "off" | "ink" | "cells" | "contour" | "truchet" | "mesh" | "orbits";
+export type ShaderId = "off" | "ink" | "contour" | "moire" | "hex" | "waves" | "spiral";
 
 export interface ShaderMeta {
   id: Exclude<ShaderId, "off">;
@@ -101,7 +103,7 @@ vec3 accentCol(){
 // Measured contrast budget: the most a pattern may pull the background toward
 // the accent while keeping functional text at WCAG AA. See contrast-budget.mjs.
 const float BUDGET_LIGHT = 0.28;
-const float BUDGET_DARK = 0.24;
+const float BUDGET_DARK = 0.49;
 float budget(){ return mix(BUDGET_LIGHT, BUDGET_DARK, uTheme); }
 // Blend a 0..1 pattern over the base background.
 vec3 compose(float pattern, float intensity){
@@ -175,60 +177,10 @@ void main(){
 }
 `;
 
-// --- Cells — an animated Voronoi membrane network -------------------------
-// Soft borders between drifting cells; the cursor repels nearby cell points
-// and clicks send a brightening pulse outward.
-const cellsFrag = `${HEAD}
-uniform vec2  uRipplePos[8];
-uniform float uRippleAge[8];
-out vec4 fragColor;
-void main(){
-  vec2 uv = gl_FragCoord.xy / uResolution.xy;
-  float ar = uResolution.x / uResolution.y;
-  vec2 p = uv * vec2(ar, 1.0);
-  vec2 m = uMouse * vec2(ar, 1.0);
-  float t = uTime * 0.08;
-  float scale = 6.0;
-  vec2 g = p * scale;
-  vec2 gi = floor(g);
-  vec2 gf = fract(g);
-
-  float d1 = 8.0;
-  float d2 = 8.0;
-  for (int j = -1; j <= 1; j++){
-    for (int i = -1; i <= 1; i++){
-      vec2 o = vec2(float(i), float(j));
-      vec2 cell = gi + o;
-      vec2 fp = vec2(hash21(cell), hash21(cell + 3.7));
-      vec2 pt = o + 0.5 + 0.4 * sin(t + 6.2831 * fp);
-      vec2 worldPt = (gi + pt) / scale;
-      vec2 away = worldPt - m;
-      float infl = exp(-dot(away, away) * 4.0) * (0.06 + 0.18 * uActive);
-      pt += normalize(away + 1e-4) * infl * scale;
-      vec2 r = pt - gf;
-      float d = dot(r, r);
-      if (d < d1){ d2 = d1; d1 = d; } else if (d < d2){ d2 = d; }
-    }
-  }
-  float edge = sqrt(d2) - sqrt(d1);
-  float net = smoothstep(0.10, 0.0, edge);
-
-  float pulse = 0.0;
-  for (int i = 0; i < 8; i++){
-    float age = uRippleAge[i];
-    if (age < 0.0) continue;
-    vec2 rc = uRipplePos[i] * vec2(ar, 1.0);
-    pulse += exp(-length(p - rc) * 2.2) * exp(-age * 1.5) * 0.7;
-  }
-
-  float pattern = clamp(net + pulse, 0.0, 1.0);
-  fragColor = vec4(compose(pattern, budget()), 1.0);
-}
-`;
-
 // --- Contour — animated topographic lines ---------------------------------
 // Iso-lines of a slowly drifting noise field. The cursor warps the terrain
-// and clicks raise Gaussian peaks (lines bunch up around them).
+// and clicks raise a gentle, broad swell (kept soft so the click point does
+// not turn into a tight spiky bullseye).
 const contourFrag = `${HEAD}
 uniform vec2  uRipplePos[8];
 uniform float uRippleAge[8];
@@ -249,7 +201,7 @@ void main(){
     if (age < 0.0) continue;
     vec2 rc = uRipplePos[i] * vec2(ar, 1.0);
     float dd = length(p - rc);
-    height += 0.5 * exp(-dd * dd * 8.0) * exp(-age * 0.8);
+    height += 0.16 * exp(-dd * dd * 4.0) * exp(-age * 0.7);
   }
 
   float hi = height * 12.0;
@@ -260,70 +212,10 @@ void main(){
 }
 `;
 
-// --- Truchet — flowing arc tiles ------------------------------------------
-// A grid of randomly-oriented quarter-arc tiles forming endless curves; tiles
-// near the cursor (and over time) flip orientation, rerouting the flow.
-const truchetFrag = `${HEAD}
-out vec4 fragColor;
-float arcMask(vec2 f, vec2 c, float w){
-  return smoothstep(w, 0.0, abs(length(f - c) - 0.5));
-}
-void main(){
-  vec2 uv = gl_FragCoord.xy / uResolution.xy;
-  float ar = uResolution.x / uResolution.y;
-  vec2 p = uv * vec2(ar, 1.0);
-  vec2 m = uMouse * vec2(ar, 1.0);
-  float scale = 9.0;
-  vec2 g = p * scale;
-  vec2 gi = floor(g);
-  vec2 gf = fract(g);
-
-  float h = hash21(gi);
-  float near = exp(-length(gi / scale - m) * 3.0) * (1.0 + uActive);
-  float flip = step(0.5, fract(h + 0.06 * uTime + 0.5 * near));
-  vec2 f = (flip < 0.5) ? gf : vec2(gf.x, 1.0 - gf.y);
-
-  float w = fwidth(g.x) * 1.5 + 0.02;
-  float a = arcMask(f, vec2(0.0, 0.0), w) + arcMask(f, vec2(1.0, 1.0), w);
-  float pattern = clamp(a, 0.0, 1.0);
-  fragColor = vec4(compose(pattern, budget()), 1.0);
-}
-`;
-
-// --- Mesh — a synthwave perspective grid ----------------------------------
-// A receding ground plane in the lower part of the screen; the upper area
-// stays clean for text. The cursor tilts the horizon and shifts the grid.
-const meshFrag = `${HEAD}
-out vec4 fragColor;
-void main(){
-  vec2 uv = gl_FragCoord.xy / uResolution.xy;
-  float ar = uResolution.x / uResolution.y;
-  vec2 m = uMouse;
-
-  float horizon = 0.6 + (m.y - 0.5) * 0.08;
-  float depth = horizon - uv.y;
-  float below = step(0.0, depth);
-  float z = 1.0 / max(depth, 0.0015);
-  float scroll = uTime * 0.5;
-
-  float gx = (uv.x - 0.5 + (m.x - 0.5) * 0.25) * z * ar;
-  float gz = z + scroll;
-  float lx = abs(fract(gx) - 0.5);
-  float lz = abs(fract(gz) - 0.5);
-  float ax = fwidth(gx) * 1.2;
-  float az = fwidth(gz) * 1.2;
-  float grid = max(smoothstep(ax, 0.0, lx), smoothstep(az, 0.0, lz));
-  grid *= below * smoothstep(0.0, 0.12, depth) * exp(-depth * 1.4);
-
-  float pattern = clamp(grid, 0.0, 1.0);
-  fragColor = vec4(compose(pattern, budget()), 1.0);
-}
-`;
-
-// --- Orbits — a HUD-like radar around the cursor --------------------------
-// Concentric rings and small orbiting dots centred near the cursor; clicks
-// emit an expanding ring.
-const orbitsFrag = `${HEAD}
+// --- Moiré — interfering ring fields --------------------------------------
+// Two concentric ring patterns (one drifting, one centred on the cursor) beat
+// against each other into sweeping moiré fringes. Clicks add a transient ring.
+const moireFrag = `${HEAD}
 uniform vec2  uRipplePos[8];
 uniform float uRippleAge[8];
 out vec4 fragColor;
@@ -332,32 +224,138 @@ void main(){
   float ar = uResolution.x / uResolution.y;
   vec2 p = uv * vec2(ar, 1.0);
   vec2 m = uMouse * vec2(ar, 1.0);
-  vec2 c = mix(vec2(0.5 * ar, 0.5), m, 0.7);
   float t = uTime * 0.2;
-  float r = length(p - c);
+  float freq = 34.0;
 
-  float rings = abs(fract(r * 5.0 - t) - 0.5);
-  float aa = fwidth(r * 5.0) * 1.2;
-  float ring = smoothstep(aa, 0.0, rings) * exp(-r * 0.8);
-
-  float dots = 0.0;
-  for (int i = 0; i < 4; i++){
-    float fi = float(i);
-    float rad = 0.12 + 0.08 * fi;
-    float ang = t * (1.0 + 0.3 * fi) + fi * 1.6;
-    vec2 dp = c + vec2(cos(ang), sin(ang)) * rad;
-    dots += smoothstep(0.022, 0.0, length(p - dp));
-  }
+  vec2 c1 = vec2(0.5 * ar, 0.5) + 0.12 * vec2(sin(t), cos(t * 0.8));
+  float a = 0.5 + 0.5 * sin(length(p - c1) * freq);
+  float b = 0.5 + 0.5 * sin(length(p - m) * freq);
+  float inter = a * b;
 
   float burst = 0.0;
   for (int i = 0; i < 8; i++){
     float age = uRippleAge[i];
     if (age < 0.0) continue;
     vec2 rc = uRipplePos[i] * vec2(ar, 1.0);
-    burst += smoothstep(0.045, 0.0, abs(length(p - rc) - age * 0.5)) * exp(-age * 1.2);
+    float rr = length(p - rc);
+    burst += (0.5 + 0.5 * sin(rr * freq - age * 8.0)) * exp(-rr * 2.2) * exp(-age * 1.0);
   }
 
-  float pattern = clamp(ring * 0.85 + dots + burst, 0.0, 1.0);
+  float pattern = smoothstep(0.5, 0.92, inter) + 0.5 * burst;
+  fragColor = vec4(compose(clamp(pattern, 0.0, 1.0), budget()), 1.0);
+}
+`;
+
+// --- Hex — a honeycomb grid -----------------------------------------------
+// A hexagonal tessellation whose rims glow; cells near the cursor light up and
+// clicks send a brightening ring through the lattice.
+const hexFrag = `${HEAD}
+uniform vec2  uRipplePos[8];
+uniform float uRippleAge[8];
+out vec4 fragColor;
+float hexDist(vec2 p){ p = abs(p); return max(dot(p, normalize(vec2(1.0, 1.7320508))), p.x); }
+void main(){
+  vec2 uv = gl_FragCoord.xy / uResolution.xy;
+  float ar = uResolution.x / uResolution.y;
+  vec2 p = uv * vec2(ar, 1.0);
+  vec2 m = uMouse * vec2(ar, 1.0);
+  float scale = 9.0;
+  vec2 gp = p * scale;
+
+  vec2 r = vec2(1.0, 1.7320508);
+  vec2 hh = r * 0.5;
+  vec2 a = mod(gp, r) - hh;
+  vec2 b = mod(gp - hh, r) - hh;
+  vec2 gv = dot(a, a) < dot(b, b) ? a : b;
+  vec2 id = (gp - gv) / scale;
+
+  float hd = hexDist(gv);
+  float aa = fwidth(hd) * 1.5;
+  float border = smoothstep(0.5 - 0.04 - aa, 0.5 - 0.04, hd);
+
+  float hi = exp(-length(id - m) * 3.5) * (0.35 + 0.8 * uActive);
+
+  float burst = 0.0;
+  for (int i = 0; i < 8; i++){
+    float age = uRippleAge[i];
+    if (age < 0.0) continue;
+    vec2 rc = uRipplePos[i] * vec2(ar, 1.0);
+    burst += smoothstep(0.08, 0.0, abs(length(id - rc) - age * 0.45)) * exp(-age * 1.2);
+  }
+
+  float pattern = clamp(border + hi * 0.7 + burst, 0.0, 1.0);
+  fragColor = vec4(compose(pattern, budget()), 1.0);
+}
+`;
+
+// --- Waves — layered horizontal wavebands ---------------------------------
+// Five scrolling sine ribbons; their amplitude swells around the cursor's x
+// position and clicks send a transverse pulse across them.
+const wavesFrag = `${HEAD}
+uniform vec2  uRipplePos[8];
+uniform float uRippleAge[8];
+out vec4 fragColor;
+void main(){
+  vec2 uv = gl_FragCoord.xy / uResolution.xy;
+  vec2 m = uMouse;
+  float t = uTime * 0.3;
+
+  float dxm = (uv.x - m.x) * 3.0;
+  float bump = exp(-dxm * dxm) * (0.5 + uActive);
+
+  float pattern = 0.0;
+  for (int i = 0; i < 5; i++){
+    float fi = float(i);
+    float baseY = 0.18 + 0.16 * fi;
+    float amp = (0.025 + 0.012 * sin(t + fi)) * (1.0 + 1.6 * bump);
+    float y = baseY + amp * sin(uv.x * 8.0 + t * (1.0 + 0.2 * fi) + fi);
+    float d = abs(uv.y - y);
+    float aa = fwidth(uv.y) * 1.5 + 0.002;
+    pattern += smoothstep(0.012 + aa, 0.0, d);
+  }
+
+  for (int i = 0; i < 8; i++){
+    float age = uRippleAge[i];
+    if (age < 0.0) continue;
+    vec2 rc = uRipplePos[i];
+    float dx = abs(uv.x - rc.x);
+    pattern += smoothstep(0.03, 0.0, abs(dx - age * 0.4)) * exp(-age * 1.5) * 0.6;
+  }
+
+  fragColor = vec4(compose(clamp(pattern, 0.0, 1.0), budget()), 1.0);
+}
+`;
+
+// --- Spiral — a rotating vortex -------------------------------------------
+// A three-arm spiral that turns near the cursor; clicks emit an expanding
+// ring. The integer arm count keeps the arms seamless (no atan branch line).
+const spiralFrag = `${HEAD}
+uniform vec2  uRipplePos[8];
+uniform float uRippleAge[8];
+out vec4 fragColor;
+void main(){
+  vec2 uv = gl_FragCoord.xy / uResolution.xy;
+  float ar = uResolution.x / uResolution.y;
+  vec2 p = uv * vec2(ar, 1.0);
+  vec2 m = uMouse * vec2(ar, 1.0);
+  vec2 c = mix(vec2(0.5 * ar, 0.5), m, 0.5);
+  vec2 d = p - c;
+  float r = length(d);
+  float a = atan(d.y, d.x);
+  float t = uTime * 0.3;
+
+  float ph = a * 3.0 + r * 8.0 - t * 2.0;
+  float spiral = smoothstep(0.55, 0.95, 0.5 + 0.5 * sin(ph)) * exp(-r * 0.9);
+
+  float burst = 0.0;
+  for (int i = 0; i < 8; i++){
+    float age = uRippleAge[i];
+    if (age < 0.0) continue;
+    vec2 rc = uRipplePos[i] * vec2(ar, 1.0);
+    burst += smoothstep(0.05, 0.0, abs(length(p - rc) - age * 0.5)) * exp(-age * 1.2);
+  }
+
+  float pattern = clamp(spiral + burst, 0.0, 1.0);
   fragColor = vec4(compose(pattern, budget()), 1.0);
 }
 `;
@@ -365,11 +363,11 @@ void main(){
 /** Selectable wallpapers (excludes the "off" / solid option). */
 export const SHADERS: ShaderDef[] = [
   { id: "ink", kind: "feedback", en: "Ink", ja: "インク", simFrag: inkSimFrag, showFrag: inkShowFrag },
-  { id: "cells", kind: "simple", en: "Cells", ja: "セル", frag: cellsFrag },
   { id: "contour", kind: "simple", en: "Contour", ja: "等高線", frag: contourFrag },
-  { id: "truchet", kind: "simple", en: "Truchet", ja: "トルシェ", frag: truchetFrag },
-  { id: "mesh", kind: "simple", en: "Mesh", ja: "メッシュ", frag: meshFrag },
-  { id: "orbits", kind: "simple", en: "Orbits", ja: "軌道", frag: orbitsFrag },
+  { id: "moire", kind: "simple", en: "Moiré", ja: "モアレ", frag: moireFrag },
+  { id: "hex", kind: "simple", en: "Hex", ja: "ハニカム", frag: hexFrag },
+  { id: "waves", kind: "simple", en: "Waves", ja: "ウェーブ", frag: wavesFrag },
+  { id: "spiral", kind: "simple", en: "Spiral", ja: "スパイラル", frag: spiralFrag },
 ];
 
 /** Every id including the solid "off" option, in picker order. */
