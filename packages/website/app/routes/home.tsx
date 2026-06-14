@@ -98,27 +98,26 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       <Header />
       <HomeHeader hueRotate={profileHue} />
 
-      {/* Tag Search */}
-      <section className="pb-8 px-8">
-        <div className="max-w-4xl mx-auto">
-          <Link
-            to={`/${language}/tags`}
-            className="focus-invert inline-flex items-center gap-2 text-sm font-serif text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-            </svg>
-            {language === 'ja' ? 'タグサーチ' : 'Tag Search'}
-            <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-            </svg>
-          </Link>
-        </div>
-      </section>
-
       {/* Entries */}
       <section className="pb-8 px-8">
         <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-between gap-4 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-serif font-semibold text-gray-900 dark:text-gray-100">
+              {language === 'ja' ? '記事' : 'Posts'}
+            </h2>
+            <Link
+              to={`/${language}/tags`}
+              className="focus-invert inline-flex items-center gap-2 text-sm font-serif text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+              </svg>
+              {language === 'ja' ? 'タグサーチ' : 'Tag Search'}
+              <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </Link>
+          </div>
           <div className="space-y-0">
             {entries.length > 0 ? (
               entries.map((entry: Entry) => (

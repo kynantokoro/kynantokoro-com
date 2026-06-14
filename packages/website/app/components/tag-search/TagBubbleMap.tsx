@@ -118,7 +118,7 @@ export default function TagBubbleMap({ nodes, language, onSelect }: TagBubbleMap
                 style={{ fontSize }}
                 className="pointer-events-none fill-gray-900 dark:fill-gray-50 font-serif font-medium"
               >
-                {n.tag}
+                {`#${n.tag}`}
               </text>
             </g>
           );

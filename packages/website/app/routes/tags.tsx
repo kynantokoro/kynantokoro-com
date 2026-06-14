@@ -133,7 +133,7 @@ export default function Tags({ loaderData }: Route.ComponentProps) {
             {tags.map((tag) => (
               <section key={tag} className="mb-10">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 font-serif">
-                  {tag}{' '}
+                  {`#${tag}`}{' '}
                   <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
                     ({grouped[tag].count})
                   </span>

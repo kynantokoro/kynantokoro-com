@@ -69,7 +69,7 @@ export default function TagEntriesOverlay({ tag, group, language, onClose }: Tag
       >
         <div className="flex items-baseline justify-between gap-4 mb-5">
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 font-serif">
-            {tag}{' '}
+            {`#${tag}`}{' '}
             <span className="text-base font-normal text-gray-500 dark:text-gray-400">
               ({group.count})
             </span>
