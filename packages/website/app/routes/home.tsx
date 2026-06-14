@@ -6,12 +6,22 @@ import EntryCard from "../components/EntryCard";
 import Header from "../components/Header";
 import HomeHeader from "../components/HomeHeader";
 import { createSanityClient, queries, type SanityEnv } from '../lib/sanity';
+import { uniqueTags, type TagEntry } from '../lib/tags';
+import { blogLd } from '../lib/jsonLd';
 
-export function meta() {
+export function meta({ params, data }: Route.MetaArgs) {
   const title = "Kynan Tokoro";
   const description = "Building software, making music, hobby game dev. Works in Japanese and English. Based in Tokyo.";
   const url = "https://kynantokoro.com";
   const ogImage = `${url}/og-image.jpg`;
+  const lang = params.lang === 'ja' ? 'ja' : 'en';
+  const tagEntries: TagEntry[] = (data?.entries ?? []).map((e: any) => ({
+    slug: e.slug,
+    title: e.metadata.title,
+    date: e.metadata.date,
+    summary: e.metadata.summary,
+    tags: e.metadata.tags,
+  }));
 
   return [
     { title },
@@ -28,6 +38,7 @@ export function meta() {
     { name: "twitter:title", content: title },
     { name: "twitter:description", content: description },
     { name: "twitter:image", content: ogImage },
+    { "script:ld+json": blogLd(tagEntries, { lang }) },
   ];
 }
 
@@ -46,9 +57,8 @@ export async function loader({ context }: Route.LoaderArgs) {
       tags: entry.tags || [],
       emoji: entry.emoji || 1,
       imageSeed: entry.imageSeed ?? 0,
-      week: entry.week,
+      summary: entry.summary,
     },
-    type: entry.entryType,
     hasEn: entry.hasEn,
     hasJa: entry.hasJa,
   }));
@@ -66,8 +76,6 @@ export function headers() {
   };
 }
 
-type Filter = 'all' | 'weekly-project' | 'blog';
-
 type Entry = {
   slug: string;
   metadata: {
@@ -76,9 +84,8 @@ type Entry = {
     tags: string[];
     emoji: number;
     imageSeed: number;
-    week?: number;
+    summary?: { en?: string; ja?: string };
   };
-  type: 'weekly-project' | 'blog';
   hasEn: boolean;
   hasJa: boolean;
 };
@@ -88,69 +95,63 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const { entries, profileHue } = loaderData;
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Get filter from URL, default to 'all'
-  const filterFromUrl = searchParams.get('filter') as Filter | null;
-  const [filter, setFilter] = useState<Filter>(
-    filterFromUrl && ['all', 'weekly-project', 'blog'].includes(filterFromUrl)
-      ? filterFromUrl
-      : 'all'
-  );
+  // Selected tag from URL (?tag=...), or null for "All"
+  const [selectedTag, setSelectedTag] = useState<string | null>(searchParams.get('tag'));
 
-  // Sync filter with URL whenever it changes (including back/forward navigation)
   useEffect(() => {
-    const urlFilter = searchParams.get('filter') as Filter | null;
-    if (urlFilter && ['all', 'weekly-project', 'blog'].includes(urlFilter)) {
-      setFilter(urlFilter);
-    } else {
-      setFilter('all'); // Reset to 'all' if no filter param
-    }
+    setSelectedTag(searchParams.get('tag'));
   }, [searchParams]);
 
-  const filteredEntries = entries.filter((entry: Entry) => {
-    // Filter by content type (all/weekly-project/blog)
-    if (filter === 'all') return true;
-    return entry.type === filter;
-  });
+  const allTags = uniqueTags(
+    entries.map((e: Entry) => ({
+      slug: e.slug,
+      title: e.metadata.title,
+      date: e.metadata.date,
+      tags: e.metadata.tags,
+    }))
+  );
 
-  const filterLabels = {
-    all: { en: 'All', ja: 'すべて' },
-    'weekly-project': { en: 'Weekly Project', ja: '週次プロジェクト' },
-    blog: { en: 'Blog', ja: 'ブログ' },
-  };
+  const filteredEntries = entries.filter((entry: Entry) =>
+    selectedTag ? (entry.metadata.tags || []).includes(selectedTag) : true
+  );
 
   return (
     <div className="min-h-screen">
       <Header />
       <HomeHeader hueRotate={profileHue} />
 
-      {/* Filter */}
-      <section className="pb-4 px-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex gap-2">
-            {(['all', 'weekly-project', 'blog'] as Filter[]).map(f => (
+      {/* Tag filter */}
+      {allTags.length > 0 && (
+        <section className="pb-4 px-8">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex gap-2 flex-wrap">
               <button
-                key={f}
-                onClick={() => {
-                  setFilter(f);
-                  // Update URL with filter parameter (replace, not push)
-                  if (f === 'all') {
-                    setSearchParams({}, { replace: true, preventScrollReset: true });
-                  } else {
-                    setSearchParams({ filter: f }, { replace: true, preventScrollReset: true });
-                  }
-                }}
+                onClick={() => setSearchParams({}, { replace: true, preventScrollReset: true })}
                 className={`px-4 py-2 text-sm font-serif rounded transition-colors outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 ${
-                  filter === f
+                  !selectedTag
                     ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-medium'
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
               >
-                {filterLabels[f][language as keyof typeof filterLabels[typeof f]]}
+                {language === 'ja' ? 'すべて' : 'All'}
               </button>
-            ))}
+              {allTags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setSearchParams({ tag }, { replace: true, preventScrollReset: true })}
+                  className={`px-4 py-2 text-sm font-serif rounded transition-colors outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 ${
+                    selectedTag === tag
+                      ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-medium'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Entries */}
       <section className="pb-8 px-8">
@@ -161,13 +162,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                 <EntryCard
                   key={entry.slug}
                   slug={entry.slug}
-                  week={entry.metadata.week}
                   title={entry.metadata.title}
                   date={entry.metadata.date}
                   emoji={entry.metadata.emoji}
                   imageSeed={entry.metadata.imageSeed}
                   tags={entry.metadata.tags || []}
-                  contentType={entry.type}
                 />
               ))
             ) : (
