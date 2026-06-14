@@ -1,18 +1,23 @@
 // Interactive shader wallpaper.
 //
-// A single, abstract "frosted glass" wallpaper rendered as a WebGL2 fragment
+// A single, abstract "cut glass" wallpaper rendered as a WebGL2 fragment
 // shader on a fullscreen triangle (no geometry buffers, no dependencies).
-// Concept: a soft coloured bulb sits behind vintage ground glass and eases
-// toward the cursor; a multi-tap blur scatters it into a frosted glow. On the
-// glass surface, occasional streaks slide past — like a closed shop window
-// catching the headlights of passing cars at night. Persistence across page
-// navigation is handled by the renderer in the always-mounted root layout.
+// Concept: a soft coloured bulb sits behind vintage glass and eases toward the
+// cursor; the glass itself is faceted like Edo Kiriko cut crystal, so its
+// facets glint and refract the light in many directions, with a partial
+// kaleidoscopic fold near the light. Across the surface, scattered streaks
+// drift past in varied hues — a closed shop window catching the headlights of
+// passing cars at night. Coordinates are domain-warped so nothing looks like a
+// repeated lattice. Persistence across navigation is handled by the renderer
+// in the always-mounted root layout.
 //
 // Contrast budget: the wallpaper composes its glow over the page background
 // with a *measured* intensity (budget()) — the largest value that keeps the
 // lightest functional text at WCAG AA (4.5:1) against the worst-case pixel,
 // per theme. See scripts/contrast-budget.mjs (guards: light gray-600, dark
-// gray-300; limits 0.288 / 0.495, applied as 0.28 / 0.49).
+// gray-300; limits 0.288 / 0.495, applied as 0.28 / 0.49). All contributions
+// fold into a single 0..1 amount and one mix(baseBg, accent, amount*budget),
+// so any per-facet hue stays AA-safe.
 //
 // Shared GLSL preamble (`HEAD`) exposes: uResolution, uTime, uMouse (0..1,
 // y-up), uLight (eased cursor follower, 0..1), uMouseVel, uTheme (0 light / 1
@@ -112,31 +117,32 @@ void main(){
 }
 `;
 
-// --- Glass — frosted vintage glass over a wandering bulb -------------------
+// --- Glass — Edo-Kiriko cut glass over a wandering bulb --------------------
 const glassFrag = `${HEAD}
 out vec4 fragColor;
 
-// Soft bulb glow centred on the (eased) light position.
-float bulbAt(vec2 q, vec2 L){
-  float d = length(q - L);
-  return exp(-d * d * 2.5);
-}
-
-// Occasional headlight-style streaks sliding across the glass surface.
-float streaksAt(vec2 q, float ar){
-  float s = 0.0;
-  for (int i = 0; i < 3; i++){
-    float fi = float(i);
-    float y0 = 0.2 + 0.6 * hash21(vec2(fi, 1.0));
-    float spd = 0.05 + 0.06 * hash21(vec2(fi, 2.0));
-    float dir = hash21(vec2(fi, 3.0)) > 0.5 ? 1.0 : -1.0;
-    float xc = fract(hash21(vec2(fi, 4.0)) + dir * uTime * spd) * ar;
-    float dy = q.y - y0;
-    float dx = q.x - xc;
-    float env = clamp(sin(uTime * 0.25 + fi * 2.1), 0.0, 1.0);
-    s += exp(-dy * dy * 260.0) * exp(-dx * dx * 7.0) * env;
+// Animated Voronoi facet field. Returns: x = edge distance (F2-F1),
+// y = nearest-cell random, zw = nearest facet point (in the input space).
+vec4 facetField(vec2 x){
+  vec2 g = floor(x);
+  vec2 f = fract(x);
+  float d1 = 8.0;
+  float d2 = 8.0;
+  vec2 bestCell = g;
+  vec2 bestPt = g + 0.5;
+  for (int j = -1; j <= 1; j++){
+    for (int i = -1; i <= 1; i++){
+      vec2 o = vec2(float(i), float(j));
+      vec2 cell = g + o;
+      vec2 jit = vec2(hash21(cell), hash21(cell + 3.7));
+      vec2 pt = o + 0.5 + 0.45 * sin(uTime * 0.15 + 6.2831 * jit);
+      vec2 rr = pt - f;
+      float d = dot(rr, rr);
+      if (d < d1){ d2 = d1; d1 = d; bestCell = cell; bestPt = g + pt; }
+      else if (d < d2){ d2 = d; }
+    }
   }
-  return s;
+  return vec4(sqrt(d2) - sqrt(d1), hash21(bestCell), bestPt);
 }
 
 void main(){
@@ -144,34 +150,80 @@ void main(){
   float ar = uResolution.x / uResolution.y;
   vec2 p = uv * vec2(ar, 1.0);
   vec2 L = uLight * vec2(ar, 1.0);
+  float t = uTime * 0.04;
 
-  // Frosted blur: average the bulb over a golden-angle disk whose radius is
-  // perturbed by glass-roughness noise, plus a low-frequency refractive warp.
-  float rough = 0.05 + 0.10 * fbm(p * 3.0 + 5.0);
-  vec2 warp = (vec2(fbm(p * 4.0 + 1.0), fbm(p * 4.0 + 9.0)) - 0.5) * 0.06;
+  // Organic domain warp so facets never read as a repeated lattice.
+  vec2 wp = p + 0.28 * vec2(fbm(p * 1.1 + t), fbm(p * 1.1 + 9.0 - t));
+
+  // Partial kaleidoscope: fold the angle around the light, strongest near it.
+  vec2 rel = wp - L;
+  float rlen = length(rel);
+  float ang = atan(rel.y, rel.x);
+  float seg = 6.2831 / 10.0;
+  float fold = abs(mod(ang, seg) - 0.5 * seg);
+  vec2 kq = L + vec2(cos(fold), sin(fold)) * rlen;
+  vec2 gp = mix(wp, kq, smoothstep(0.95, 0.15, rlen));
+
+  // Weighted circular hue accumulator + total amount.
+  vec2 hueVec = vec2(0.0);
+  float total = 0.0;
+
+  // Soft frosted bulb behind the glass (small golden-angle blur).
+  float rough = 0.05 + 0.08 * fbm(p * 3.0 + 5.0);
   float bulb = 0.0;
-  for (int i = 0; i < 12; i++){
+  for (int i = 0; i < 8; i++){
     float a = float(i) * 2.39996323;
-    float rad = sqrt((float(i) + 0.5) / 12.0) * rough;
-    bulb += bulbAt(p + vec2(cos(a), sin(a)) * rad + warp, L);
+    float radius = sqrt((float(i) + 0.5) / 8.0) * rough;
+    float d = length(p + vec2(cos(a), sin(a)) * radius - L);
+    bulb += exp(-d * d * 2.3);
   }
-  bulb /= 12.0;
-  bulb *= 0.85 + 0.15 * sin(uTime * 0.5); // gentle breathing
+  bulb = bulb / 8.0 * (0.85 + 0.15 * sin(uTime * 0.5));
+  float wb = bulb * 0.55;
+  total += wb;
+  hueVec += vec2(cos(radians(uHue)), sin(radians(uHue))) * wb;
 
-  // Surface reflections sit in front of the glass, so blur them far less.
-  float refl = streaksAt(p + warp * 0.4, ar);
+  // Cut-glass facets at two scales: rims + specular glints toward the light,
+  // each facet taking its own hue for prismatic colour.
+  for (int s = 0; s < 2; s++){
+    float scale = (s == 0) ? 3.0 : 6.5;
+    vec4 F = facetField(gp * scale + float(s) * 11.0);
+    vec2 fc = F.zw / scale;
+    float rnd = F.y;
+    float rim = smoothstep(0.05, 0.0, F.x);
+    vec2 n = vec2(cos(rnd * 6.2831), sin(rnd * 6.2831));
+    vec2 toL = normalize(L - fc + 1e-4);
+    float spec = pow(max(dot(n, toL), 0.0), 6.0) * exp(-length(L - fc) * 0.9);
+    float w = spec * (s == 0 ? 0.9 : 0.6) + rim * (s == 0 ? 0.20 : 0.14);
+    float hue = uHue + (rnd - 0.5) * 150.0;
+    total += w;
+    hueVec += vec2(cos(radians(hue)), sin(radians(hue))) * w;
+  }
 
-  // Uneven glass thickness + fine ground-glass grain modulate the amount only
-  // (never the final luminance), so the contrast budget still holds.
-  float mottle = 0.65 + 0.35 * fbm(p * 2.0 + 3.0);
-  float grain = 0.9 + 0.2 * hash21(floor(gl_FragCoord.xy));
+  // Scattered surface streaks (passing headlights): random pos/angle/hue.
+  for (int i = 0; i < 4; i++){
+    float fi = float(i);
+    vec2 c = vec2(hash21(vec2(fi, 1.0)) * ar, hash21(vec2(fi, 2.0)));
+    float sa = hash21(vec2(fi, 3.0)) * 6.2831;
+    vec2 dir = vec2(cos(sa), sin(sa));
+    float spd = 0.05 + 0.08 * hash21(vec2(fi, 4.0));
+    float along = fract(hash21(vec2(fi, 5.0)) + uTime * spd) * 2.4 - 1.2;
+    vec2 center = c + dir * along;
+    vec2 rr = p - center;
+    float u = dot(rr, dir);
+    float vv = dot(rr, vec2(-dir.y, dir.x));
+    float env = clamp(sin(uTime * 0.3 + fi * 1.7), 0.0, 1.0);
+    float g = exp(-vv * vv * 220.0) * exp(-u * u * 6.0) * env;
+    float hue = hash21(vec2(fi, 6.0)) * 360.0;
+    total += g;
+    hueVec += vec2(cos(radians(hue)), sin(radians(hue))) * g;
+  }
 
-  float bulbI = bulb * mottle * 1.3;
-  float reflI = refl * 0.7;
-  float total = clamp((bulbI + reflI) * grain, 0.0, 1.0);
+  // Fine organic grain modulates the amount only (keeps the contrast budget).
+  float grain = 0.9 + 0.2 * fbm(p * 22.0 + 30.0);
+  total = clamp(total * grain, 0.0, 1.0);
 
-  // Bulb keys off the key-visual hue; reflections take a shifted hue.
-  vec3 acc = mix(accentAt(uHue), accentAt(uHue + 35.0), clamp(reflI / max(bulbI + reflI, 1e-3), 0.0, 1.0));
+  float hue = degrees(atan(hueVec.y, hueVec.x));
+  vec3 acc = accentAt(hue);
   vec3 col = mix(baseBg(), acc, total * budget());
   fragColor = vec4(col, 1.0);
 }
