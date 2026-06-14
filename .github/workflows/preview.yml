@@ -1,0 +1,134 @@
+name: Preview Deploy
+
+# On each PR to main, builds the full site (including projects, matching the
+# production deploy) and uploads a non-active Worker version, producing a
+# temporary preview URL without affecting production traffic.
+# Also acts as the website typecheck/build gate that the deploy workflow lacks.
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    name: Build & upload preview
+    steps:
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          repositories: |
+            kynantokoro-com
+            kynantokoro-com-projects
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ steps.generate-token.outputs.token }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Typecheck website
+        run: pnpm --filter website typecheck
+
+      - name: Pull Emscripten Docker image
+        run: docker pull emscripten/emsdk:3.1.51
+
+      - name: Cache project hashes manifest
+        uses: actions/cache@v4
+        with:
+          path: .github/scripts/project-hashes.json
+          key: ${{ runner.os }}-project-manifest-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-project-manifest-
+
+      - name: Cache project build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            packages/projects/*/dist
+            packages/website/public/projects
+          key: ${{ runner.os }}-project-outputs-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-project-outputs-
+
+      - name: Build projects (incremental)
+        run: |
+          chmod +x .github/scripts/build-projects.sh
+          .github/scripts/build-projects.sh
+
+      - name: Build website
+        run: pnpm --filter website build
+
+      - name: Upload preview version
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: packages/website
+          command: versions upload
+
+      - name: Comment preview URL on PR
+        if: always() && steps.deploy.outputs.deployment-url != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ steps.deploy.outputs.deployment-url }}';
+            const marker = '<!-- preview-deploy -->';
+            const body = `${marker}\n🔍 **Preview deployed:** ${url}\n\n_Updated on every push to this PR. Production is unaffected._`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
