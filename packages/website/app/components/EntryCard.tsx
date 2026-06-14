@@ -13,10 +13,9 @@ interface EntryCardProps {
   date: string;
   emoji?: number;
   imageSeed?: number;
-  tags: string[];
 }
 
-export default function EntryCard({ slug, title, date, emoji, imageSeed, tags }: EntryCardProps) {
+export default function EntryCard({ slug, title, date, emoji, imageSeed }: EntryCardProps) {
   const { language } = useLanguage();
   const [searchParams] = useSearchParams();
   const languageLayoutData = useRouteLoaderData<typeof languageLayoutLoader>('routes/language-layout');
@@ -62,18 +61,6 @@ export default function EntryCard({ slug, title, date, emoji, imageSeed, tags }:
               day: 'numeric',
             })}
           </p>
-          {tags.length > 0 && (
-            <div className="flex gap-2 mt-2">
-              {tags.slice(0, 3).map(tag => (
-                <span
-                  key={tag}
-                  className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded font-serif transition-opacity duration-200 group-hover:opacity-60"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </Link>

@@ -124,7 +124,6 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                   date={entry.metadata.date}
                   emoji={entry.metadata.emoji}
                   imageSeed={entry.metadata.imageSeed}
-                  tags={entry.metadata.tags || []}
                 />
               ))
             ) : (
