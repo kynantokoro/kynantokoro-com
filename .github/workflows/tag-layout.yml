@@ -13,6 +13,11 @@ name: Regenerate tag layout
 
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force regeneration even if the tag set is unchanged (replaces the manual seed with a Claude-generated layout)'
+        type: boolean
+        default: false
   schedule:
     - cron: '0 18 * * *' # daily
   repository_dispatch:
@@ -74,6 +79,7 @@ jobs:
           SANITY_DATASET: ${{ vars.SANITY_STUDIO_DATASET }}
           SANITY_TOKEN: ${{ secrets.SANITY_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TAG_LAYOUT_FORCE: ${{ inputs.force }}
 
       - name: Commit if changed
         env:

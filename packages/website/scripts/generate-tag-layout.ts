@@ -108,14 +108,19 @@ async function main() {
     console.log('No tags found; nothing to do.');
     return;
   }
+  const force = process.env.TAG_LAYOUT_FORCE === '1' || process.env.TAG_LAYOUT_FORCE === 'true';
   const hash = computeTagSetHash(tags);
   const existing = readExisting();
-  if (existing && existing.hash === hash) {
+  if (!force && existing && existing.hash === hash) {
     console.log(`Tag set unchanged (hash ${hash}); layout is up to date.`);
     return;
   }
 
-  console.log(`Tag set changed (hash ${hash}); regenerating via ${model}...`);
+  console.log(
+    force
+      ? `Forced regeneration (hash ${hash}) via ${model}...`
+      : `Tag set changed (hash ${hash}); regenerating via ${model}...`
+  );
   const rawClusters = await clusterWithClaude(tags);
   const clusters = ensureCoverage(tags, rawClusters);
   const layout: TagLayout = { hash, generatedAt: new Date().toISOString(), model, clusters };
