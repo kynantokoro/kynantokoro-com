@@ -25,7 +25,17 @@ type CompiledFeedback = {
   cur: number;
   ready: boolean;
 };
-type Compiled = CompiledSimple | CompiledFeedback;
+type CompiledPostfx = {
+  kind: "postfx";
+  scene: Prog;
+  post: Prog;
+  tex: WebGLTexture | null;
+  fbo: WebGLFramebuffer | null;
+  w: number;
+  h: number;
+  ready: boolean;
+};
+type Compiled = CompiledSimple | CompiledFeedback | CompiledPostfx;
 
 /**
  * Persistent interactive shader wallpaper.
@@ -120,6 +130,14 @@ export default function ShaderBackground() {
         compiledMap.set(def.id, c);
         return c;
       }
+      if (def.kind === "postfx") {
+        const scene = makeProg(def.sceneFrag);
+        const post = makeProg(def.postFrag);
+        if (!scene || !post) return null;
+        const c: Compiled = { kind: "postfx", scene, post, tex: null, fbo: null, w: 0, h: 0, ready: false };
+        compiledMap.set(def.id, c);
+        return c;
+      }
       const sim = makeProg(def.simFrag);
       const show = makeProg(def.showFrag);
       if (!sim || !show) return null;
@@ -154,9 +172,9 @@ export default function ShaderBackground() {
       ch = h;
       canvas!.width = w;
       canvas!.height = h;
-      // Feedback buffers depend on canvas size — flag them for reallocation.
+      // Offscreen buffers depend on canvas size — flag them for reallocation.
       for (const c of compiledMap.values()) {
-        if (c.kind === "feedback") c.ready = false;
+        if (c.kind === "feedback" || c.kind === "postfx") c.ready = false;
       }
     }
 
@@ -193,6 +211,27 @@ export default function ShaderBackground() {
       c.w = w;
       c.h = h;
       c.cur = 0;
+      c.ready = true;
+    }
+
+    function initPostfx(c: CompiledPostfx) {
+      if (c.tex) g.deleteTexture(c.tex);
+      if (c.fbo) g.deleteFramebuffer(c.fbo);
+      const tex = g.createTexture()!;
+      g.bindTexture(g.TEXTURE_2D, tex);
+      g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, cw, ch, 0, g.RGBA, g.UNSIGNED_BYTE, null);
+      g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR);
+      g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR);
+      g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE);
+      g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE);
+      const fb = g.createFramebuffer()!;
+      g.bindFramebuffer(g.FRAMEBUFFER, fb);
+      g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, tex, 0);
+      g.bindFramebuffer(g.FRAMEBUFFER, null);
+      c.tex = tex;
+      c.fbo = fb;
+      c.w = cw;
+      c.h = ch;
       c.ready = true;
     }
 
@@ -351,6 +390,24 @@ export default function ShaderBackground() {
         const ra = compiled.main.u("uRippleAge[0]");
         if (ra) g.uniform1fv(ra, ripAge);
         g.drawArrays(g.TRIANGLES, 0, 3);
+      } else if (compiled.kind === "postfx") {
+        if (!compiled.ready || !compiled.tex || !compiled.fbo) initPostfx(compiled);
+        // Scene pass -> offscreen full-resolution texture.
+        g.bindFramebuffer(g.FRAMEBUFFER, compiled.fbo);
+        g.viewport(0, 0, cw, ch);
+        g.useProgram(compiled.scene.program);
+        setCommon(compiled.scene.u, cw, ch);
+        g.drawArrays(g.TRIANGLES, 0, 3);
+        // Post pass -> screen, reading the scene texture for flare + paper.
+        g.bindFramebuffer(g.FRAMEBUFFER, null);
+        g.viewport(0, 0, cw, ch);
+        g.useProgram(compiled.post.program);
+        g.activeTexture(g.TEXTURE0);
+        g.bindTexture(g.TEXTURE_2D, compiled.tex);
+        const sc = compiled.post.u("uScene");
+        if (sc) g.uniform1i(sc, 0);
+        setCommon(compiled.post.u, cw, ch);
+        g.drawArrays(g.TRIANGLES, 0, 3);
       } else {
         if (!compiled.ready) initFeedback(compiled);
 
@@ -413,6 +470,11 @@ export default function ShaderBackground() {
       for (const c of compiledMap.values()) {
         if (c.kind === "simple") {
           g.deleteProgram(c.main.program);
+        } else if (c.kind === "postfx") {
+          g.deleteProgram(c.scene.program);
+          g.deleteProgram(c.post.program);
+          if (c.tex) g.deleteTexture(c.tex);
+          if (c.fbo) g.deleteFramebuffer(c.fbo);
         } else {
           g.deleteProgram(c.sim.program);
           g.deleteProgram(c.show.program);
