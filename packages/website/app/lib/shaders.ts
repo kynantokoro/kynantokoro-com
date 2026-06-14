@@ -135,7 +135,7 @@ vec4 facetField(vec2 x){
       vec2 o = vec2(float(i), float(j));
       vec2 cell = g + o;
       vec2 jit = vec2(hash21(cell), hash21(cell + 3.7));
-      vec2 pt = o + 0.5 + 0.45 * sin(uTime * 0.15 + 6.2831 * jit);
+      vec2 pt = o + jit; // static facet point — the glass cut pattern is fixed
       vec2 rr = pt - f;
       float d = dot(rr, rr);
       if (d < d1){ d2 = d1; d1 = d; bestCell = cell; bestPt = g + pt; }
@@ -150,19 +150,19 @@ void main(){
   float ar = uResolution.x / uResolution.y;
   vec2 p = uv * vec2(ar, 1.0);
   vec2 L = uLight * vec2(ar, 1.0);
-  float t = uTime * 0.04;
 
-  // Organic domain warp so facets never read as a repeated lattice.
-  vec2 wp = p + 0.28 * vec2(fbm(p * 1.1 + t), fbm(p * 1.1 + 9.0 - t));
-
-  // Partial kaleidoscope: fold the angle around the light, strongest near it.
-  vec2 rel = wp - L;
+  // The glass itself is a FIXED texture: a static organic warp so the facets
+  // never read as a repeated lattice, and a kaleidoscope folded around the
+  // screen centre (not the cursor) so the cut pattern never moves.
+  vec2 wp = p + 0.28 * vec2(fbm(p * 1.1 + 2.0), fbm(p * 1.1 + 9.0));
+  vec2 kc = vec2(0.5 * ar, 0.5);
+  vec2 rel = wp - kc;
   float rlen = length(rel);
   float ang = atan(rel.y, rel.x);
   float seg = 6.2831 / 10.0;
   float fold = abs(mod(ang, seg) - 0.5 * seg);
-  vec2 kq = L + vec2(cos(fold), sin(fold)) * rlen;
-  vec2 gp = mix(wp, kq, smoothstep(0.95, 0.15, rlen));
+  vec2 kq = kc + vec2(cos(fold), sin(fold)) * rlen;
+  vec2 gp = mix(wp, kq, smoothstep(1.1, 0.15, rlen));
 
   // Weighted circular hue accumulator + total amount.
   vec2 hueVec = vec2(0.0);
@@ -218,9 +218,16 @@ void main(){
     hueVec += vec2(cos(radians(hue)), sin(radians(hue))) * g;
   }
 
-  // Fine organic grain modulates the amount only (keeps the contrast budget).
-  float grain = 0.9 + 0.2 * fbm(p * 22.0 + 30.0);
-  total = clamp(total * grain, 0.0, 1.0);
+  // Frosted ground-glass grain: a FIXED texture (organic clumps + fine
+  // speckle) plus an ambient frost layer, so the whole pane reads as frosted
+  // even away from the light. Modulates the amount only (keeps the budget).
+  float gClump = fbm(p * 14.0);
+  float gFine = hash21(floor(gl_FragCoord.xy));
+  float grainN = clamp(gClump * 0.55 + gFine * 0.45, 0.0, 1.0);
+  float frost = 0.16 * grainN;
+  total += frost;
+  hueVec += vec2(cos(radians(uHue)), sin(radians(uHue))) * frost;
+  total = clamp(total * (0.5 + 1.0 * grainN), 0.0, 1.0);
 
   float hue = degrees(atan(hueVec.y, hueVec.x));
   vec3 acc = accentAt(hue);
