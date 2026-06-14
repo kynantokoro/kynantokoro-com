@@ -7,11 +7,25 @@ import { getEmojiColor } from '../lib/emojiColors';
 import { PortableText } from '@portabletext/react';
 import { createPortableTextComponents } from '../components/portable-text/portableTextComponents';
 import GeneratedKeyImage from '../components/GeneratedKeyImage';
+import { blogPostingLd } from '../lib/jsonLd';
+import type { TagEntry } from '../lib/tags';
 
 export function meta({ params, data }: Route.MetaArgs) {
-  const title = data?.entry?.metadata?.title?.en;
-  const url = `https://kynantokoro.com/en/entry/${params.slug}`;
+  const lang = params.lang === 'ja' ? 'ja' : 'en';
+  const title = data?.entry?.metadata?.title?.[lang] || data?.entry?.metadata?.title?.en;
+  const url = `https://kynantokoro.com/${lang}/entry/${params.slug}`;
+  const mdUrl = `${url}.md`;
   const ogImage = "https://kynantokoro.com/og-image.jpg";
+
+  const tags: TagEntry | null = data?.entry
+    ? {
+        slug: data.entry.slug,
+        title: data.entry.metadata.title,
+        date: data.entry.metadata.date,
+        summary: data.entry.metadata.summary,
+        tags: data.entry.metadata.tags,
+      }
+    : null;
 
   return [
     { title },
@@ -23,6 +37,8 @@ export function meta({ params, data }: Route.MetaArgs) {
     { name: "twitter:card", content: "summary_large_image" },
     { name: "twitter:title", content: title },
     { name: "twitter:image", content: ogImage },
+    { tagName: "link", rel: "alternate", type: "text/markdown", href: mdUrl },
+    ...(tags ? [{ "script:ld+json": blogPostingLd(tags, { lang }) }] : []),
   ];
 }
 
@@ -42,14 +58,13 @@ export async function loader({ params, context }: Route.LoaderArgs) {
 
   const entry = {
     slug: sanityEntry.slug,
-    type: sanityEntry.entryType,
     metadata: {
       title: sanityEntry.title || { en: 'Untitled', ja: 'Untitled' },
-      week: sanityEntry.week,
       date: sanityEntry.date,
       tags: sanityEntry.tags || [],
       emoji: sanityEntry.emoji || 1,
       imageSeed: sanityEntry.imageSeed ?? 0,
+      summary: sanityEntry.summary,
       enIsTranslated: sanityEntry.enIsTranslated || false,
       jaIsTranslated: sanityEntry.jaIsTranslated || false,
     },
@@ -81,8 +96,6 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
     ? createPortableTextComponents(projectId, dataset)
     : undefined;
 
-  const isWeeklyProject = entry.type === 'weekly-project';
-
   return (
     <div className="min-h-screen">
       <Header showBackButton />
@@ -100,12 +113,6 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-baseline gap-3 mb-2">
-            {/* Show week number only for Weekly Project entries */}
-            {isWeeklyProject && entry.metadata.week && (
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400 font-serif">
-                Week {entry.metadata.week}
-              </span>
-            )}
             <span className="text-xs text-gray-400 dark:text-gray-500 font-serif">
               {new Date(entry.metadata.date).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US', {
                 year: 'numeric',
