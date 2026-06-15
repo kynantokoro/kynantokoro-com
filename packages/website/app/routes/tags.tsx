@@ -13,7 +13,7 @@ const TagBubbleMap = lazy(() => import('../components/tag-search/TagBubbleMap'))
 
 export function meta() {
   return [
-    { title: "Tag Search · Kynan Tokoro" },
+    { title: "Tags · Kynan Tokoro" },
     { name: "description", content: "Explore posts by tag." },
   ];
 }
@@ -79,7 +79,7 @@ export default function Tags({ loaderData }: Route.ComponentProps) {
       {/* Top bar */}
       <div className="flex items-center justify-between px-6 py-4 shrink-0 border-b border-gray-200 dark:border-gray-800">
         <h1 className="text-base font-serif font-semibold text-gray-900 dark:text-gray-100">
-          {lang === 'ja' ? 'タグサーチ' : 'Tag Search'}
+          {lang === 'ja' ? 'タグ' : 'Tags'}
         </h1>
         <Link
           to={`/${lang}`}

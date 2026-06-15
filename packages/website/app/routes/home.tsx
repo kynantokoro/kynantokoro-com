@@ -1,5 +1,4 @@
 import type { Route } from "./+types/home";
-import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, useSearchParams, useRouteLoaderData } from "react-router";
 import { useLanguage } from "../contexts/language-context";
 import EntryCard from "../components/EntryCard";
@@ -9,11 +8,7 @@ import { createSanityClient, queries, type SanityEnv } from '../lib/sanity';
 import { type TagEntry } from '../lib/tags';
 import { blogLd } from '../lib/jsonLd';
 import { getActiveTags, matchesAllTags, buildTagSearch } from '../lib/tagFilter';
-import type { SearchItem } from "../components/search/SearchPalette";
 import type { loader as languageLayoutLoader } from "./language-layout";
-
-const SearchPalette = lazy(() => import("../components/search/SearchPalette"));
-
 
 export function meta({ params, data }: Route.MetaArgs) {
   const title = "Kynan Tokoro";
@@ -99,29 +94,10 @@ type Entry = {
 export default function Home({ loaderData }: Route.ComponentProps) {
   const { language } = useLanguage();
   const { entries, profileHue } = loaderData;
-  const lang = language === 'ja' ? 'ja' : 'en';
   const [searchParams] = useSearchParams();
   const activeTags = getActiveTags(searchParams);
   const languageLayoutData = useRouteLoaderData<typeof languageLayoutLoader>('routes/language-layout');
   const isMobileUA = languageLayoutData?.isMobileUA ?? false;
-
-  const [searchOpen, setSearchOpen] = useState(false);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setSearchOpen((o) => !o);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  const searchItems: SearchItem[] = entries.map((e: Entry) => ({
-    slug: e.slug,
-    title: e.metadata.title,
-    tags: e.metadata.tags || [],
-  }));
 
   const visibleEntries = entries.filter((e: Entry) => matchesAllTags(e.metadata.tags, activeTags));
 
@@ -155,15 +131,15 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             </div>
             <Link
               to={`/${language}/tags`}
-              onClick={(e) => { e.preventDefault(); setSearchOpen(true); }}
-              aria-label={language === 'ja' ? '検索' : 'Search'}
+              viewTransition={!isMobileUA}
+              prefetch={isMobileUA ? "viewport" : "intent"}
+              aria-label={language === 'ja' ? 'タグで探す' : 'Browse tags'}
               className="focus-invert inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-sm font-serif text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600 hover:text-gray-700 dark:hover:text-gray-300 transition-colors shrink-0"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M3 5a2 2 0 012-2h5.586a1 1 0 01.707.293l8 8a2 2 0 010 2.828l-5.586 5.586a2 2 0 01-2.828 0l-8-8A1 1 0 013 10.586V5z" />
               </svg>
-              <span>{language === 'ja' ? '検索…' : 'Search…'}</span>
-              <kbd className="hidden sm:inline-flex items-center rounded border border-gray-300 dark:border-gray-600 px-1 py-0.5 text-[10px] leading-none text-gray-400">⌘K</kbd>
+              <span>{language === 'ja' ? 'タグ' : 'Tags'}</span>
             </Link>
           </div>
           <div className="space-y-0">
@@ -189,17 +165,6 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           </div>
         </div>
       </section>
-
-      {searchOpen && (
-        <Suspense fallback={null}>
-          <SearchPalette
-            items={searchItems}
-            language={lang}
-            isMobileUA={isMobileUA}
-            onClose={() => setSearchOpen(false)}
-          />
-        </Suspense>
-      )}
     </div>
   );
 }
