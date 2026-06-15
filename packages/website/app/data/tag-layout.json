@@ -1,32 +1,47 @@
 {
-  "hash": "97b3dc24",
-  "generatedAt": "2026-06-14T12:00:00.000Z",
-  "model": "manual-seed",
+  "hash": "c248db80",
+  "generatedAt": "2026-06-15T23:47:07.135Z",
+  "model": "claude-sonnet-4-6",
   "clusters": [
     {
-      "id": "web-platform",
-      "name": { "en": "Web Platform & CMS", "ja": "Web基盤・CMS" },
-      "tags": ["Cache-Control", "FOUC", "Sanity CMS"]
+      "id": "web-performance",
+      "name": {
+        "en": "Web Performance & Caching",
+        "ja": "Webパフォーマンス・キャッシュ"
+      },
+      "tags": [
+        "Cache-Control"
+      ]
     },
     {
-      "id": "systems-graphics",
-      "name": { "en": "Systems & Graphics", "ja": "システム・グラフィックス" },
-      "tags": ["programming", "sokol", "c", "wasm"]
+      "id": "frontend-ux",
+      "name": {
+        "en": "Frontend & UX",
+        "ja": "フロントエンド・UX"
+      },
+      "tags": [
+        "FOUC"
+      ]
     },
     {
-      "id": "creative-art",
-      "name": { "en": "Creative & Art", "ja": "クリエイティブ・アート" },
-      "tags": ["art", "Flipnote Studio"]
+      "id": "cms-content",
+      "name": {
+        "en": "CMS & Content Tools",
+        "ja": "CMS・コンテンツツール"
+      },
+      "tags": [
+        "Sanity CMS"
+      ]
     },
     {
-      "id": "workflow-tools",
-      "name": { "en": "Workflow & Tools", "ja": "ワークフロー・ツール" },
-      "tags": ["workflow", "tools"]
-    },
-    {
-      "id": "meta-test",
-      "name": { "en": "Meta / Test", "ja": "メタ・テスト" },
-      "tags": ["test", "テスト"]
+      "id": "creative-tools",
+      "name": {
+        "en": "Creative & Animation Tools",
+        "ja": "クリエイティブ・アニメーションツール"
+      },
+      "tags": [
+        "Flipnote Studio"
+      ]
     }
   ]
 }
