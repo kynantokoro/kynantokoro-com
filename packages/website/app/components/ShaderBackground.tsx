@@ -163,11 +163,11 @@ export default function ShaderBackground() {
     // ---- canvas sizing -----------------------------------------------------
     let cw = 0;
     let ch = 0;
-    function resize() {
+    function resize(): boolean {
       const dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
       const w = Math.max(1, Math.floor(canvas!.clientWidth * dpr));
       const h = Math.max(1, Math.floor(canvas!.clientHeight * dpr));
-      if (w === cw && h === ch) return;
+      if (w === cw && h === ch) return false;
       cw = w;
       ch = h;
       canvas!.width = w;
@@ -176,6 +176,7 @@ export default function ShaderBackground() {
       for (const c of compiledMap.values()) {
         if (c.kind === "feedback" || c.kind === "postfx") c.ready = false;
       }
+      return true;
     }
 
     function initFeedback(c: CompiledFeedback) {
@@ -461,8 +462,10 @@ export default function ShaderBackground() {
       if (visible && !frozen) kick();
     };
     const onResize = () => {
-      resize();
-      kick();
+      // Only re-animate on a real size change (rotation / window resize). The
+      // 100lvh canvas keeps a stable size when the mobile URL bar shows/hides,
+      // so that resize event is a no-op here and must NOT re-trigger the intro.
+      if (resize()) kick();
     };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("resize", onResize, { passive: true });

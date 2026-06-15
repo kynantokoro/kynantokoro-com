@@ -182,7 +182,7 @@ void main(){
   float vig = smoothstep(1.15, 0.5, length((uv - 0.5) * vec2(ar, 1.0)));
   // Multiplicative grain reads far stronger on the light (near-white) base than
   // on dark, so ease it down in light mode.
-  float pInten = uPaperInten * mix(0.4, 1.0, uTheme);
+  float pInten = uPaperInten * mix(0.06, 1.0, uTheme);
   col *= 1.0 + (grain * 0.7 + fib * 0.3 + scr) * pInten;
   col *= mix(1.0, 0.9, (1.0 - vig) * pInten);
 
