@@ -94,6 +94,7 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
             seed={entry.metadata.imageSeed}
             className="w-32 h-32 rounded-2xl"
             containerSize={128}
+            revealBg
           />
         </div>
 

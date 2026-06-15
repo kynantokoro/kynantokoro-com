@@ -9,7 +9,7 @@ interface HomeHeaderProps {
 
 export default function HomeHeader({ hueRotate }: HomeHeaderProps) {
   const { language } = useLanguage();
-  const { setAccentHue } = useShader();
+  const { reveal } = useShader();
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Echo the key visual's ACTUAL displayed colour in the shader wallpaper:
@@ -37,9 +37,9 @@ export default function HomeHeader({ hueRotate }: HomeHeaderProps) {
         ctx.drawImage(img, 0, 0, 32, 42);
         ctx.filter = 'none';
         const data = ctx.getImageData(0, 0, 32, 42).data;
-        setAccentHue(dominantHue(data, hueRotate));
+        reveal(dominantHue(data, hueRotate));
       } catch {
-        setAccentHue(hueRotate); // canvas blocked — fall back to the raw hue
+        reveal(hueRotate); // canvas blocked — fall back to the raw hue
       }
     };
     if (img.complete) sample();
@@ -51,7 +51,7 @@ export default function HomeHeader({ hueRotate }: HomeHeaderProps) {
       img.removeEventListener('load', sample);
       obs.disconnect();
     };
-  }, [hueRotate, setAccentHue]);
+  }, [hueRotate, reveal]);
 
   const profile = {
     en: {

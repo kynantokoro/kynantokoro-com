@@ -51,19 +51,20 @@ type Compiled = CompiledSimple | CompiledFeedback | CompiledPostfx;
  * from window-level listeners so links and scrolling keep working.
  */
 export default function ShaderBackground() {
-  const { shader, accentHue, params } = useShader();
+  const { shader, accentHue, revealId, params } = useShader();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Live values the render loop reads without re-running the setup effect.
   const shaderRef = useRef(shader);
   shaderRef.current = shader;
-  const hueRef = useRef(accentHue);
-  hueRef.current = accentHue;
+  const accentHueRef = useRef(accentHue); // target hue (current page's key visual)
+  accentHueRef.current = accentHue;
   const paramsRef = useRef(params);
   paramsRef.current = params;
 
-  // Lets the [shader] effect restart the loop after it parks itself on "off".
+  // Let effects (re)start / re-trigger the loop without re-running setup.
   const kickRef = useRef<(() => void) | null>(null);
+  const revealRef = useRef<(() => void) | null>(null);
 
   // Reveal the wallpaper by making the page background transparent only while
   // a shader is selected.
@@ -75,11 +76,13 @@ export default function ShaderBackground() {
     if (shader !== "off") kickRef.current?.();
   }, [shader]);
 
-  // Re-reveal in the new colour when the key-visual hue changes (landing on or
-  // navigating to home with a fresh random hue, or toggling theme).
+  // Every reveal() — each page mount/navigation, and theme flips — animates the
+  // wallpaper toward that page's key-visual colour, blending from the current
+  // colour instead of hard-cutting.
   useEffect(() => {
-    kickRef.current?.();
-  }, [accentHue]);
+    revealRef.current?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealId]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -286,7 +289,7 @@ export default function ShaderBackground() {
       const t = u("uTime");
       if (t) g.uniform1f(t, timeSec);
       const ip = u("uIntro");
-      if (ip) g.uniform1f(ip, introProgress);
+      if (ip) g.uniform1f(ip, bloomThisReveal ? introProgress : 1.0);
       const rs = u("uRest");
       if (rs) g.uniform1f(rs, restProgress);
       const m = u("uMouse");
@@ -298,7 +301,7 @@ export default function ShaderBackground() {
       const th = u("uTheme");
       if (th) g.uniform1f(th, theme);
       const h = u("uHue");
-      if (h) g.uniform1f(h, hueRef.current);
+      if (h) g.uniform1f(h, currentHue);
       const a = u("uActive");
       if (a) g.uniform1f(a, Math.min(1, activity));
       const mo = u("uMotion");
@@ -318,6 +321,39 @@ export default function ShaderBackground() {
     let frozen = false; // after the intro the last frame is held (≈0 GPU)
     let introProgress = 1; // 0->1 across the intro (drives the entrance bloom)
     let restProgress = 1; // 0->1 across the brake (settles the wallpaper to rest)
+    // The displayed hue blends between pages. Persist it in sessionStorage so a
+    // navigation that ends up reloading the document (or a fresh mount) still
+    // cross-fades from the previous page's colour instead of snapping to it.
+    const HUE_KEY = "sh-hue";
+    const readStoredHue = (): number | null => {
+      try {
+        const v = sessionStorage.getItem(HUE_KEY);
+        if (v == null) return null;
+        const n = parseFloat(v);
+        return Number.isFinite(n) ? n : null;
+      } catch {
+        return null;
+      }
+    };
+    const storedHue = readStoredHue();
+    // Hold at the stored colour until this page's own reveal redirects the
+    // target — otherwise we'd briefly drift toward the context default first.
+    let currentHue = storedHue ?? accentHueRef.current; // animated hue
+    let targetHue = storedHue ?? accentHueRef.current;
+    const hadPrevHue = storedHue != null; // a previous page left a colour to blend from
+    let firstReveal = true; // the first reveal of this mount
+    let bloomThisReveal = true;
+    let lastStoredHue = Math.round(currentHue);
+    const persistHue = () => {
+      const r = Math.round(currentHue);
+      if (r === lastStoredHue) return;
+      lastStoredHue = r;
+      try {
+        sessionStorage.setItem(HUE_KEY, String(currentHue));
+      } catch {
+        /* storage unavailable — blend still works within a single document */
+      }
+    };
 
     const loop = (ts: number) => {
       if (!visible) {
@@ -346,6 +382,15 @@ export default function ShaderBackground() {
       lastTs = ts;
       if (dt > 0.1) dt = 0.1;
       if (dt < 0) dt = 0;
+      // Blend the displayed hue toward the target (set by reveal): a smooth
+      // colour cross-fade between pages instead of a hard switch.
+      if (reduced) {
+        currentHue = targetHue;
+      } else {
+        const dh = ((targetHue - currentHue + 540) % 360) - 180;
+        currentHue += dh * Math.min(1, dt * 2.5);
+      }
+      persistHue();
       // Lively for INTRO_MS, then brake over BRAKE_MS: the time-rate eases
       // 1 -> 0 (quadratic), so all motion glides to a smooth stop instead of
       // cutting out abruptly.
@@ -462,6 +507,23 @@ export default function ShaderBackground() {
     };
     kickRef.current = kick;
 
+    // A reveal sets a new target hue and (re)animates. The first reveal blooms
+    // the light in from nothing; later reveals (navigation) keep the glow and
+    // just blend the colour while re-energising the motion ("mix in").
+    const doReveal = () => {
+      targetHue = accentHueRef.current;
+      if (firstReveal && !hadPrevHue) {
+        // Very first colour this session: nothing to blend from, so snap.
+        currentHue = targetHue;
+      }
+      // Bloom the glow in on a fresh mount or whenever it had faded to rest;
+      // a mid-animation navigation keeps its bloom and just blends the colour.
+      bloomThisReveal = firstReveal || frozen || restProgress > 0.5;
+      firstReveal = false;
+      kick();
+    };
+    revealRef.current = doReveal;
+
     const onVisibility = () => {
       visible = !document.hidden;
       // Resume an interrupted intro; if already frozen, keep the held frame.
@@ -483,6 +545,7 @@ export default function ShaderBackground() {
       if (rafId) cancelAnimationFrame(rafId);
       rafId = 0;
       kickRef.current = null;
+      revealRef.current = null;
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisibility);
       reducedQuery.removeEventListener("change", onReducedChange);

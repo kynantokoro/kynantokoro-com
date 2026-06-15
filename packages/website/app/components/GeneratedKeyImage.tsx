@@ -1,3 +1,6 @@
+import { useEffect, useRef } from 'react';
+import { useShader } from '../contexts/shader-context';
+import { dominantHue } from '../lib/keyVisualColor';
 
 // Seeded random generator (決定的な乱数生成)
 function seededRandom(seed: number, index: number): number {
@@ -89,14 +92,55 @@ interface GeneratedKeyImageProps {
   seed: number;
   className?: string;
   containerSize?: number; // コンテナのサイズ（px）
+  /** When true, this key image drives the shader wallpaper's colour. */
+  revealBg?: boolean;
 }
 
-export default function GeneratedKeyImage({ seed, className = "", containerSize = 128 }: GeneratedKeyImageProps) {
+export default function GeneratedKeyImage({ seed, className = "", containerSize = 128, revealBg = false }: GeneratedKeyImageProps) {
   const params = generateImageParams(seed, containerSize);
+  const { reveal } = useShader();
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // Drive the wallpaper colour from this key image's actually-displayed hue.
+  useEffect(() => {
+    if (!revealBg) return;
+    const img = imgRef.current;
+    if (!img) return;
+    let cancelled = false;
+    const sample = () => {
+      if (cancelled || !img.complete || img.naturalWidth === 0) return;
+      try {
+        const cv = document.createElement('canvas');
+        cv.width = 32;
+        cv.height = 42;
+        const ctx = cv.getContext('2d', { willReadFrequently: true });
+        if (!ctx) return;
+        const isDark = document.documentElement.classList.contains('dark');
+        ctx.filter = isDark ? `hue-rotate(${params.hue}deg)` : `invert(1) hue-rotate(${params.hue}deg)`;
+        ctx.drawImage(img, 0, 0, 32, 42);
+        ctx.filter = 'none';
+        const data = ctx.getImageData(0, 0, 32, 42).data;
+        reveal(dominantHue(data, params.hue));
+      } catch {
+        reveal(params.hue);
+      }
+    };
+    if (img.complete) sample();
+    else img.addEventListener('load', sample, { once: true });
+    const obs = new MutationObserver(sample);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => {
+      cancelled = true;
+      img.removeEventListener('load', sample);
+      obs.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealBg, seed, params.hue, reveal]);
 
   return (
     <div className={`relative overflow-hidden ${className}`}>
       <img
+        ref={imgRef}
         src={`/dsanim-frames/frame_${params.frame.toString().padStart(2, '0')}.png`}
         alt=""
         className="light-mode-invert"

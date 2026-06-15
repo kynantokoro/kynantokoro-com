@@ -8,10 +8,14 @@ interface ShaderContextValue {
   /** Currently selected wallpaper ("off" = solid background). */
   shader: ShaderId;
   setShader: (id: ShaderId) => void;
-  /** Accent hue (degrees) the wallpaper tints toward. Synced from the home
-   *  page key visual so the background echoes its randomised colour. */
+  /** Accent hue (degrees) the wallpaper tints toward — the colour of the
+   *  current page's key visual. */
   accentHue: number;
-  setAccentHue: (hue: number) => void;
+  /** Set the accent hue AND trigger a (re)animation. Called by each page on
+   *  mount/navigation with its key-visual colour. */
+  reveal: (hue: number) => void;
+  /** Increments on every reveal(); the renderer animates whenever it changes. */
+  revealId: number;
   /** Live-tunable look parameters (see PARAM_DEFS / ShaderTunePanel). */
   params: Record<string, number>;
   setParam: (key: string, value: number) => void;
@@ -25,6 +29,7 @@ export function ShaderProvider({ children }: { children: React.ReactNode }) {
   // hydration mismatches.
   const [shader, setShaderState] = useState<ShaderId>(DEFAULT_SHADER);
   const [accentHue, setAccentHue] = useState<number>(210);
+  const [revealId, setRevealId] = useState<number>(0);
   const [params, setParams] = useState<Record<string, number>>(DEFAULT_PARAMS);
 
   useEffect(() => {
@@ -54,6 +59,11 @@ export function ShaderProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const reveal = useCallback((hue: number) => {
+    setAccentHue(hue);
+    setRevealId((n) => n + 1);
+  }, []);
+
   const setParam = useCallback((key: string, value: number) => {
     setParams((prev) => {
       const next = { ...prev, [key]: value };
@@ -77,7 +87,7 @@ export function ShaderProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ShaderContext.Provider
-      value={{ shader, setShader, accentHue, setAccentHue, params, setParam, resetParams }}
+      value={{ shader, setShader, accentHue, reveal, revealId, params, setParam, resetParams }}
     >
       {children}
     </ShaderContext.Provider>
