@@ -180,8 +180,11 @@ void main(){
     scr -= step(across, 0.001) * smoothstep(0.35, 0.0, abs(along)) * 0.25;
   }
   float vig = smoothstep(1.15, 0.5, length((uv - 0.5) * vec2(ar, 1.0)));
-  col *= 1.0 + (grain * 0.7 + fib * 0.3 + scr) * uPaperInten;
-  col *= mix(1.0, 0.9, (1.0 - vig) * uPaperInten);
+  // Multiplicative grain reads far stronger on the light (near-white) base than
+  // on dark, so ease it down in light mode.
+  float pInten = uPaperInten * mix(0.4, 1.0, uTheme);
+  col *= 1.0 + (grain * 0.7 + fib * 0.3 + scr) * pInten;
+  col *= mix(1.0, 0.9, (1.0 - vig) * pInten);
 
   fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
