@@ -60,24 +60,24 @@ export interface ParamDef {
 }
 
 export const PARAM_DEFS: ParamDef[] = [
-  { key: "bulbRadius", uniform: "uBulbRadius", label: "Bulb size", min: 0.1, max: 1.2, step: 0.01, value: 1.2 },
-  { key: "bulbInten", uniform: "uBulbInten", label: "Bulb intensity", min: 0, max: 1.5, step: 0.01, value: 1.5 },
+  { key: "bulbRadius", uniform: "uBulbRadius", label: "Bulb size", min: 0.1, max: 1.2, step: 0.01, value: 0.45 },
+  { key: "bulbInten", uniform: "uBulbInten", label: "Bulb intensity", min: 0, max: 1.5, step: 0.01, value: 1.2 },
   { key: "autoMove", uniform: "uAutoMove", label: "Auto motion", min: 0, max: 1, step: 0.01, value: 0.3 },
   { key: "gridCount", uniform: "uGridCount", label: "Grid count", min: 1, max: 8, step: 1, value: 3 },
   { key: "cutSteps", uniform: "uCutSteps", label: "Cut steps", min: 2, max: 10, step: 1, value: 4 },
-  { key: "refract", uniform: "uRefract", label: "Refraction bend", min: 0, max: 0.2, step: 0.005, value: 0.025 },
-  { key: "facetTilt", uniform: "uFacetTilt", label: "Facet tilt", min: 0, max: 2, step: 0.02, value: 1.56 },
-  { key: "disperse", uniform: "uDisperse", label: "Dispersion", min: 0, max: 0.05, step: 0.001, value: 0.014 },
+  { key: "refract", uniform: "uRefract", label: "Refraction bend", min: 0, max: 0.2, step: 0.005, value: 0.05 },
+  { key: "facetTilt", uniform: "uFacetTilt", label: "Facet tilt", min: 0, max: 2, step: 0.02, value: 1.1 },
+  { key: "disperse", uniform: "uDisperse", label: "Dispersion", min: 0, max: 0.05, step: 0.001, value: 0.022 },
   { key: "shininess", uniform: "uShininess", label: "Glint sharpness", min: 2, max: 60, step: 1, value: 11 },
   { key: "glintInten", uniform: "uGlintInten", label: "Glint intensity", min: 0, max: 2, step: 0.02, value: 1.04 },
-  { key: "edgeInten", uniform: "uEdgeInten", label: "Cut edges", min: 0, max: 1, step: 0.01, value: 0.96 },
+  { key: "edgeInten", uniform: "uEdgeInten", label: "Cut edges", min: 0, max: 1, step: 0.01, value: 0.85 },
   { key: "reflInten", uniform: "uReflInten", label: "Reflections", min: 0, max: 1, step: 0.01, value: 0.84 },
-  { key: "flareInten", uniform: "uFlareInten", label: "Cross flare", min: 0, max: 1.5, step: 0.02, value: 1.34 },
-  { key: "flareLen", uniform: "uFlareLen", label: "Flare length", min: 0.05, max: 0.8, step: 0.01, value: 0.37 },
-  { key: "paperInten", uniform: "uPaperInten", label: "Paper / grain", min: 0, max: 1, step: 0.01, value: 0.74 },
+  { key: "flareInten", uniform: "uFlareInten", label: "Cross flare", min: 0, max: 1.5, step: 0.02, value: 0.9 },
+  { key: "flareLen", uniform: "uFlareLen", label: "Flare length", min: 0.05, max: 0.8, step: 0.01, value: 0.3 },
+  { key: "paperInten", uniform: "uPaperInten", label: "Paper / grain", min: 0, max: 1, step: 0.01, value: 0.55 },
   { key: "paperScale", uniform: "uPaperScale", label: "Paper scale", min: 0.2, max: 2, step: 0.05, value: 0.75 },
-  { key: "budgetLight", uniform: "uBudgetLight", label: "Budget (light)", min: 0.1, max: 0.5, step: 0.005, value: 0.195 },
-  { key: "budgetDark", uniform: "uBudgetDark", label: "Budget (dark)", min: 0.1, max: 0.7, step: 0.005, value: 0.295 },
+  { key: "budgetLight", uniform: "uBudgetLight", label: "Budget (light)", min: 0.1, max: 0.5, step: 0.005, value: 0.24 },
+  { key: "budgetDark", uniform: "uBudgetDark", label: "Budget (dark)", min: 0.1, max: 0.7, step: 0.005, value: 0.34 },
 ];
 
 export const DEFAULT_PARAMS: Record<string, number> = Object.fromEntries(
@@ -188,19 +188,24 @@ void main(){
          + texture(uScene, uv + vec2(0.0, off)).a + texture(uScene, uv - vec2(0.0, off)).a) * fall;
   }
   fl *= uFlareInten;
-  col = mix(col, mix(vec3(1.0), accentAt(uHue), 0.35), clamp(fl, 0.0, 1.0));
+  // Flare uses the accent colour (not white) so it is visible on the near-white
+  // light background too.
+  col = mix(col, accentAt(uHue), clamp(fl, 0.0, 1.0));
 
   vec2 fc = gl_FragCoord.xy * uPaperScale;
   float grain = mix(hash12(fc), hash12(floor(fc * 0.5)), 0.4) - 0.5;
   float fib = hash12(vec2(floor(fc.x * 0.2), floor(fc.y))) - 0.5;
+  // Sparse, short, faint scratches (not full-screen lines).
   float scr = 0.0;
-  for (int i = 0; i < 3; i++){
+  for (int i = 0; i < 2; i++){
     float fi = float(i);
     float ang = hash12(vec2(fi, 7.0)) * 3.1416;
     vec2 dir = vec2(cos(ang), sin(ang));
-    float off = (hash12(vec2(fi, 8.0)) - 0.5) * 1.6;
-    float dd = abs(dot(uv * vec2(ar, 1.0) - vec2(0.5 * ar, 0.5), vec2(-dir.y, dir.x)) - off);
-    scr -= step(dd, 0.0015) * (0.4 + 0.4 * hash12(vec2(fi, 9.0)));
+    vec2 ctr = vec2(hash12(vec2(fi, 8.0)) * ar, hash12(vec2(fi, 10.0)));
+    vec2 rel = uv * vec2(ar, 1.0) - ctr;
+    float across = abs(dot(rel, vec2(-dir.y, dir.x)));
+    float along = dot(rel, dir);
+    scr -= step(across, 0.001) * smoothstep(0.35, 0.0, abs(along)) * 0.25;
   }
   float vig = smoothstep(1.15, 0.5, length((uv - 0.5) * vec2(ar, 1.0)));
   col *= 1.0 + (grain * 0.7 + fib * 0.3 + scr) * uPaperInten;
@@ -238,10 +243,14 @@ vec3 facetNormal(vec2 p, float ar, out float edge, out vec2 cellId){
   return N;
 }
 
-// Light environment behind the glass: bulb + autonomous light2 (sum only).
+// A light disk with a defined (soft) edge, so its outline visibly bends when
+// refracted through the facets — a smooth Gaussian's edge is too soft to read.
+float lightDisk(vec2 q, vec2 c, float rad){
+  return smoothstep(rad, rad * 0.55, length(q - c));
+}
 float envLight(vec2 q, float ar, vec2 Lm, vec2 L2){
   float rad = max(uBulbRadius, 0.05);
-  return blob(q, Lm, rad) * uBulbInten + blob(q, L2, rad * 0.8) * uBulbInten * 0.85;
+  return lightDisk(q, Lm, rad) * uBulbInten + lightDisk(q, L2, rad * 0.8) * uBulbInten * 0.85;
 }
 
 void main(){
@@ -259,8 +268,8 @@ void main(){
   vec2 rd = N.xy * uRefract;
 
   float rad = max(uBulbRadius, 0.05);
-  float bm = blob(p + rd, Lm, rad) * uBulbInten;
-  float b2 = blob(p + rd, L2, rad * 0.8) * uBulbInten * 0.85;
+  float bm = lightDisk(p + rd, Lm, rad) * uBulbInten;
+  float b2 = lightDisk(p + rd, L2, rad * 0.8) * uBulbInten * 0.85;
 
   // Streaks (moving headlights), accumulating colour.
   float st = 0.0;
@@ -292,13 +301,18 @@ void main(){
   spec *= uGlintInten;
   float fres = pow(1.0 - clamp(N.z, 0.0, 1.0), 2.0);
 
-  float total = clamp(t1 * 0.7 + spec + edge * uEdgeInten + fres * 0.3, 0.0, 1.0);
-  vec2 hv = dirHue(uHue) * bm + dirHue(hue2) * b2 + stHue + dirHue(uHue) * (edge * uEdgeInten + fres * 0.3);
+  // Show the cut structure mainly where light passes through (clean elsewhere).
+  float litLocal = clamp(bm + b2, 0.0, 1.0);
+  float edgeLit = edge * uEdgeInten * (0.2 + 0.8 * litLocal);
+  float total = clamp(t1 * 0.9 + spec + edgeLit + fres * 0.3 * litLocal, 0.0, 1.0);
+  vec2 hv = dirHue(uHue) * bm + dirHue(hue2) * b2 + stHue + dirHue(uHue) * (edgeLit + fres * 0.3 * litLocal);
   float hue = degrees(atan(hv.y, hv.x));
   vec3 col = mix(baseBg(), accentAt(hue), total * budget());
   col += vec3(t0 - t1, 0.0, t2 - t1) * (uDisperse * 8.0) * budget();
 
-  float bright = clamp(spec * 1.3 + fres * 0.5, 0.0, 1.0);
+  // Bright PEAKS feed the cross flare — sharp glints + a concentrated light
+  // core (not the whole broad disk, which would smear the flare).
+  float bright = clamp(spec * 1.5 + fres * 0.4 + lightDisk(p, Lm, rad * 0.22) * 1.2, 0.0, 1.0);
   fragColor = vec4(clamp(col, 0.0, 1.0), bright);
 }
 `;
