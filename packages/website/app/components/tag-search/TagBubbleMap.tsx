@@ -13,9 +13,12 @@ import { MAP_WIDTH, MAP_HEIGHT, type BubbleNode } from '../../lib/tagLayout';
 
 type SimNode = BubbleNode & SimulationNodeDatum;
 
-// Invisible node pinned to the cursor so bubbles part around it.
-const CURSOR_TAG = '__cursor__';
-const CURSOR_RADIUS = 42;
+// Cursor interaction tuning (in map coordinates; see MAP_WIDTH/HEIGHT).
+// The cursor gives a *soft, bounded* nudge to nearby bubbles (no hard wall),
+// and the bubble closest to the pointer is "locked" so it can be clicked.
+const REPEL_RADIUS = 140; // how far the cursor's push reaches
+const REPEL_STRENGTH = 6; // max velocity injected per tick (bounded, gentle)
+const CATCH_MARGIN = 14; // pointer within (radius + margin) → lock for clicking
 
 function clusterColor(index: number): string {
   // Golden-ish hue spread per cluster; readable in light & dark.
@@ -43,28 +46,66 @@ export default function TagBubbleMap({ nodes, language, onSelect }: TagBubbleMap
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-    // Pinned cursor node (off-screen until the pointer moves over the map).
-    const cursor: SimNode = {
-      tag: CURSOR_TAG,
-      count: 0,
-      radius: CURSOR_RADIUS,
-      clusterId: '',
-      clusterIndex: -1,
-      x: -9999,
-      y: -9999,
-      fx: -9999,
-      fy: -9999,
-    };
-    const allNodes = [...simNodes, cursor];
+    // Pointer position in map coordinates, and the currently "locked" bubble.
+    let pointerPos: { x: number; y: number } | null = null;
+    let activeTag: string | null = null;
 
-    const sim = forceSimulation<SimNode>(allNodes)
-      .force('charge', forceManyBody<SimNode>().strength((d) => (d.tag === CURSOR_TAG ? 0 : -40)))
-      .force(
-        'collide',
-        forceCollide<SimNode>((d) => (d.tag === CURSOR_TAG ? d.radius : d.radius + 3)).iterations(2)
-      )
+    // Soft, bounded repulsion away from the cursor. The bubble under the
+    // pointer (activeTag) is exempt so it stays put and stays clickable.
+    const cursorForce = () => {
+      if (!pointerPos) return;
+      for (const n of simNodes) {
+        if (n.tag === activeTag) continue;
+        const dx = (n.x ?? 0) - pointerPos.x;
+        const dy = (n.y ?? 0) - pointerPos.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist <= 0 || dist >= REPEL_RADIUS) continue;
+        // Magnitude = STRENGTH * falloff (the 1/dist cancels with dx/dy),
+        // so the per-tick nudge is bounded by REPEL_STRENGTH — never explosive.
+        const k = (REPEL_STRENGTH * (1 - dist / REPEL_RADIUS)) / dist;
+        n.vx = (n.vx ?? 0) + dx * k;
+        n.vy = (n.vy ?? 0) + dy * k;
+      }
+    };
+
+    const sim = forceSimulation<SimNode>(simNodes)
+      .force('charge', forceManyBody<SimNode>().strength(-40))
+      .force('collide', forceCollide<SimNode>((d) => d.radius + 3).iterations(2))
       .force('x', forceX<SimNode>((d) => targets.get(d.tag)?.x ?? d.x).strength(0.08))
-      .force('y', forceY<SimNode>((d) => targets.get(d.tag)?.y ?? d.y).strength(0.08));
+      .force('y', forceY<SimNode>((d) => targets.get(d.tag)?.y ?? d.y).strength(0.08))
+      .force('cursor', cursorForce);
+
+    // Lock / unlock the bubble nearest the pointer: pin it so it can't drift,
+    // and highlight it so it reads as the click target.
+    const setActive = (node: SimNode | null) => {
+      const next = node ? node.tag : null;
+      if (next === activeTag) return;
+      if (activeTag) {
+        const prev = simNodes.find((n) => n.tag === activeTag);
+        if (prev) {
+          prev.fx = null;
+          prev.fy = null;
+        }
+      }
+      activeTag = next;
+      if (node) {
+        node.fx = node.x ?? null;
+        node.fy = node.y ?? null;
+      }
+      for (const n of simNodes) {
+        const circle = nodeRefs.current.get(n.tag)?.querySelector('circle');
+        if (!(circle instanceof SVGElement)) continue;
+        if (n.tag === activeTag) {
+          circle.style.opacity = '1';
+          circle.style.stroke = '#eab308';
+          circle.style.strokeWidth = '3';
+        } else {
+          circle.style.opacity = '';
+          circle.style.stroke = '';
+          circle.style.strokeWidth = '';
+        }
+      }
+    };
 
     const ticked = () => {
       for (const n of simNodes) {
@@ -94,16 +135,29 @@ export default function TagBubbleMap({ nodes, language, onSelect }: TagBubbleMap
       if (!reduced) {
         sel
           .on('pointerenter.cursor', () => {
-            sim.alphaTarget(0.12).restart();
+            sim.alphaTarget(0.18).restart();
           })
           .on('pointermove.cursor', (event) => {
             const [mx, my] = pointer(event, g);
-            cursor.fx = mx;
-            cursor.fy = my;
+            pointerPos = { x: mx, y: my };
+
+            // Lock the nearest bubble once the pointer is close enough.
+            let nearest: SimNode | null = null;
+            let nearestDist = Infinity;
+            for (const n of simNodes) {
+              const d = Math.hypot((n.x ?? 0) - mx, (n.y ?? 0) - my);
+              if (d < nearestDist) {
+                nearestDist = d;
+                nearest = n;
+              }
+            }
+            setActive(nearest && nearestDist <= nearest.radius + CATCH_MARGIN ? nearest : null);
+
+            sim.alphaTarget(0.18).restart();
           })
           .on('pointerleave.cursor', () => {
-            cursor.fx = -9999;
-            cursor.fy = -9999;
+            pointerPos = null;
+            setActive(null);
             sim.alphaTarget(0);
           });
       }
