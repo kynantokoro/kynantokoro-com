@@ -160,10 +160,10 @@ void main(){
   fl *= uFlareInten;
   col = mix(col, accentAt(uHue), clamp(fl, 0.0, 1.0));
 
-  // As the wallpaper brakes to a stop, settle it toward the base background so
-  // the resting "reading" state is calmer and text is more legible (darker in
-  // dark mode, lighter in light mode).
-  col = mix(col, baseBg(), uRest * 0.55);
+  // As the wallpaper brakes to a stop, fade the light element fully out toward
+  // the base background, so the resting state is just background + paper grain
+  // (maximally legible — darker in dark mode, lighter in light mode).
+  col = mix(col, baseBg(), uRest);
 
   vec2 fc = gl_FragCoord.xy * uPaperScale;
   float grain = mix(hash12(fc), hash12(floor(fc * 0.5)), 0.4) - 0.5;
