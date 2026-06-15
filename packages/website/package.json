@@ -15,12 +15,10 @@
 		"typecheck": "npm run cf-typegen && react-router typegen && tsc -b"
 	},
 	"dependencies": {
-		"@anthropic-ai/sdk": "^0.71.2",
 		"@portabletext/react": "^6.0.0",
 		"@sanity/client": "^7.13.0",
 		"@sanity/image-url": "^1.2.0",
 		"d3-force": "^3.0.0",
-		"d3-scale": "^4.0.2",
 		"d3-selection": "^3.0.0",
 		"d3-zoom": "^3.0.0",
 		"isbot": "^5.1.32",
@@ -32,6 +30,7 @@
 		"zod": "^3.23.0"
 	},
 	"devDependencies": {
+		"@anthropic-ai/sdk": "^0.71.2",
 		"@cloudflare/vite-plugin": "^1.15.2",
 		"@portabletext/block-tools": "^5.0.0",
 		"@react-router/dev": "^7.9.6",
@@ -39,7 +38,6 @@
 		"@tailwindcss/typography": "^0.5.19",
 		"@tailwindcss/vite": "^4.1.17",
 		"@types/d3-force": "^3.0.10",
-		"@types/d3-scale": "^4.0.9",
 		"@types/d3-selection": "^3.0.11",
 		"@types/d3-zoom": "^3.0.8",
 		"@types/node": "^22.19.1",
