@@ -344,10 +344,14 @@ export default function ShaderBackground() {
       smy += (tmy - smy) * k;
       vx = dt > 0 ? (smx - px) / dt : 0;
       vy = dt > 0 ? (smy - py) / dt : 0;
-      // The bulb eases toward the cursor much more slowly than the pointer.
-      const kl = Math.min(1, dt * 1.6);
-      lightX += (tmx - lightX) * kl;
-      lightY += (tmy - lightY) * kl;
+      // Cursor attraction: gentle and only partial (stays mostly centred) so
+      // it is calm, not distracting. Multiplied by `motion`, so it freezes
+      // completely under prefers-reduced-motion (fully static wallpaper).
+      const targetLX = 0.5 + (tmx - 0.5) * 0.6;
+      const targetLY = 0.5 + (tmy - 0.5) * 0.6;
+      const kl = Math.min(1, dt * 0.9) * motion;
+      lightX += (targetLX - lightX) * kl;
+      lightY += (targetLY - lightY) * kl;
       const vlen = Math.hypot(vx, vy);
       if (vlen > 3) {
         vx *= 3 / vlen;
