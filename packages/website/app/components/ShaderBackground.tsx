@@ -2,6 +2,12 @@ import { useEffect, useRef } from "react";
 import { useShader } from "../contexts/shader-context";
 import { DEFAULT_PARAMS, DEFAULT_SHADER, getShaderDef, PARAM_DEFS, VERTEX_SRC, type ShaderDef } from "../lib/shaders";
 
+// TODO(review): only the "aura" postfx shader is registered, so the "simple"
+// (ripples) and "feedback" (ping-pong sim) render paths in the loop below — plus
+// the Compiled{Simple,Feedback} types, the ripple/click state and the
+// uMouse/uLight/uMouseVel/uActive uniforms — are currently unreachable dead
+// code. Consider pruning to the postfx path only (~150 lines) once the look is
+// locked in. MAX_RIPPLES / RIPPLE_LIFE / SIM_* belong to those dead paths.
 const MAX_RIPPLES = 8;
 const RIPPLE_LIFE = 2.6; // seconds
 const DPR_CAP = 1.25; // background is soft/grainy — a low cap saves a lot of GPU
@@ -81,6 +87,14 @@ export default function ShaderBackground() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // TODO(review): no WebGL context-loss recovery. Add a webglcontextlost
+    // listener (preventDefault) + webglcontextrestored (re-init programs/FBOs)
+    // so this always-on background self-heals after a GPU/context reset instead
+    // of staying on the CSS fallback colour until a full reload.
+    // (e2e: force loss/restore via the WEBGL_lose_context extension.)
+    // TODO(review): alpha:false makes the canvas opaque before the first draw —
+    // verify there's no 1-frame black flash in light mode (the .shader-bg CSS
+    // fallback colour sits behind the canvas).
     const gl = canvas.getContext("webgl2", {
       antialias: false,
       alpha: false,
@@ -253,6 +267,10 @@ export default function ShaderBackground() {
     const click = { x: 0.5, y: 0.5, t: -100 };
 
     let theme = document.documentElement.classList.contains("dark") ? 1 : 0;
+    // TODO(review): fires on ANY documentElement class change (shader-active,
+    // header-hydrating, data-theme…), not just dark toggles, so it can re-kick
+    // the intro on unrelated mutations — including the shader-active class this
+    // component adds on mount. Guard on an actual change of the dark boolean.
     const themeObserver = new MutationObserver(() => {
       theme = document.documentElement.classList.contains("dark") ? 1 : 0;
       kickRef.current?.();

@@ -44,6 +44,9 @@ export default function HomeHeader({ hueRotate }: HomeHeaderProps) {
     };
     if (img.complete) sample();
     else img.addEventListener('load', sample, { once: true });
+    // TODO(review): re-samples on any documentElement class change, not only
+    // dark toggles (shader-active / header-hydrating / data-theme also fire) —
+    // could guard on an actual dark-state transition.
     const obs = new MutationObserver(sample);
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => {

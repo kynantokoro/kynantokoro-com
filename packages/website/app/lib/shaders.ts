@@ -54,6 +54,11 @@ export interface ParamDef {
   value: number;
 }
 
+// TODO(review): the wallpaper picker + tuning panel were removed, so each
+// ParamDef's min/max/step/label are now vestigial — only `value` (fed into
+// DEFAULT_PARAMS) and `uniform` are consumed at runtime. Likewise OFF_LABEL /
+// isShaderId / SHADER_IDS below are leftovers from the picker. Trim once the
+// look parameters are final.
 export const PARAM_DEFS: ParamDef[] = [
   { key: "bulbRadius", uniform: "uBulbRadius", label: "Light size", min: 0.1, max: 1.2, step: 0.01, value: 0.5 },
   { key: "bulbInten", uniform: "uBulbInten", label: "Light intensity", min: 0, max: 1.5, step: 0.01, value: 1.2 },
