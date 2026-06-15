@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useLanguage } from '../contexts/language-context';
 import { useShader } from '../contexts/shader-context';
-import { keyVisualHue, type RGB } from '../lib/keyVisualColor';
+import { dominantHue } from '../lib/keyVisualColor';
 
 interface HomeHeaderProps {
   hueRotate: number;
@@ -23,24 +23,21 @@ export default function HomeHeader({ hueRotate }: HomeHeaderProps) {
       if (cancelled || !img.complete || img.naturalWidth === 0) return;
       try {
         const cv = document.createElement('canvas');
-        cv.width = 24;
-        cv.height = 32;
+        cv.width = 32;
+        cv.height = 42;
         const ctx = cv.getContext('2d', { willReadFrequently: true });
         if (!ctx) return;
-        ctx.drawImage(img, 0, 0, 24, 32);
-        const data = ctx.getImageData(0, 0, 24, 32).data;
-        let r = 0, g = 0, b = 0, n = 0;
-        for (let i = 0; i < data.length; i += 4) {
-          if (data[i + 3] < 10) continue;
-          r += data[i];
-          g += data[i + 1];
-          b += data[i + 2];
-          n++;
-        }
-        if (!n) return;
-        const avg: RGB = [r / n / 255, g / n / 255, b / n / 255];
         const isDark = document.documentElement.classList.contains('dark');
-        setAccentHue(keyVisualHue(avg, hueRotate, isDark));
+        // Sample THROUGH the same CSS filter the page applies, so the pixels
+        // are exactly what's shown; the dominant (chroma-weighted) hue then
+        // matches the key visual's perceived colour.
+        ctx.filter = isDark
+          ? `hue-rotate(${hueRotate}deg)`
+          : `invert(1) hue-rotate(${hueRotate}deg)`;
+        ctx.drawImage(img, 0, 0, 32, 42);
+        ctx.filter = 'none';
+        const data = ctx.getImageData(0, 0, 32, 42).data;
+        setAccentHue(dominantHue(data, hueRotate));
       } catch {
         setAccentHue(hueRotate); // canvas blocked — fall back to the raw hue
       }
