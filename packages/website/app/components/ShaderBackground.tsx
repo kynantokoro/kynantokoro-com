@@ -7,7 +7,8 @@ const RIPPLE_LIFE = 2.6; // seconds
 const DPR_CAP = 1.25; // background is soft/grainy — a low cap saves a lot of GPU
 const FPS_CAP = 32; // the wallpaper moves slowly; 32fps halves GPU vs 60
 const FRAME_MS = 1000 / FPS_CAP;
-const INTRO_MS = 5000; // animate this long on load, then freeze the last frame
+const INTRO_MS = 5000; // lively intro at full speed
+const BRAKE_MS = 3000; // then ease the time-rate to zero over this long (smooth stop)
 const SIM_SCALE = 0.5; // feedback simulation runs at half the canvas resolution
 const SIM_MAX_DIM = 480; // ...capped so large screens stay cheap
 
@@ -335,8 +336,17 @@ export default function ShaderBackground() {
       lastTs = ts;
       if (dt > 0.1) dt = 0.1;
       if (dt < 0) dt = 0;
-      timeSec += dt;
-      introProgress = reduced ? 1 : Math.min(1, (ts - introStart) / INTRO_MS);
+      // Lively for INTRO_MS, then brake over BRAKE_MS: the time-rate eases
+      // 1 -> 0 (quadratic), so all motion glides to a smooth stop instead of
+      // cutting out abruptly.
+      const elapsed = ts - introStart;
+      let rate = 1;
+      if (elapsed > INTRO_MS) {
+        const b = Math.min(1, (elapsed - INTRO_MS) / BRAKE_MS);
+        rate = (1 - b) * (1 - b);
+      }
+      timeSec += dt * (reduced ? 0 : rate);
+      introProgress = reduced ? 1 : Math.min(1, elapsed / INTRO_MS);
 
       resize();
 
@@ -425,7 +435,7 @@ export default function ShaderBackground() {
       // Play a short intro, then freeze the last frame and stop drawing
       // entirely (≈0 GPU while reading). Re-kicked on theme/resize/re-select;
       // reduced-motion shows a single static frame immediately.
-      if (reduced || ts - introStart >= INTRO_MS) {
+      if (reduced || ts - introStart >= INTRO_MS + BRAKE_MS) {
         frozen = true;
         rafId = 0;
         return;
