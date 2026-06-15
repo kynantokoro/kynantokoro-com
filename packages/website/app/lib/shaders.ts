@@ -79,6 +79,7 @@ uniform float uTime;
 uniform vec2  uLight;
 uniform float uTheme;
 uniform float uHue;
+uniform float uIntro; // 0->1 over the intro, for the entrance bloom
 
 uniform float uBulbRadius;
 uniform float uBulbInten;
@@ -187,16 +188,23 @@ void main(){
   vec2 uv = gl_FragCoord.xy / uResolution.xy;
   float ar = uResolution.x / uResolution.y;
   vec2 p = uv * vec2(ar, 1.0);
-  float t = uTime * 0.05;
+  float t = uTime * 0.12;
 
-  // Autonomous (non-interactive) drift.
-  vec2 L = vec2(0.5 * ar, 0.5) + vec2(sin(uTime * 0.13), cos(uTime * 0.11)) * uAutoMove * 0.35;
+  // Entrance: the light blooms in over the first ~1.2s of the intro.
+  float bloom = smoothstep(0.0, 0.24, uIntro);
+
+  // Autonomous drift — larger & faster so the glow visibly travels.
+  vec2 drift = vec2(sin(uTime * 0.5), cos(uTime * 0.42)) * uAutoMove * 0.5;
+  vec2 L = vec2(0.5 * ar, 0.5) + drift;
+
+  // Flowing aurora curtains (clearly moving, not just a slow hue shift).
   vec2 q = p * 1.4;
-  q += vec2(fbm(q + t), fbm(q + 9.0 - t)) * 0.6;
-  float bands = smoothstep(0.45, 0.95, 0.5 + 0.5 * sin(q.y * 3.0 + fbm(q * 1.5) * 4.0 + t * 2.0));
-  float gl = lightDisk(p, L, max(uBulbRadius, 0.05) * 1.4) * uBulbInten;
-  float amt = clamp(gl * (0.4 + 0.6 * bands), 0.0, 1.0);
-  float hue = uHue + fbm(q) * 120.0 + uTime * 12.0;
+  q += vec2(fbm(q + t), fbm(q + 9.0 - t)) * 0.85;
+  float bands = smoothstep(0.4, 0.95, 0.5 + 0.5 * sin(q.y * 3.0 + fbm(q * 1.5) * 5.0 + uTime * 1.1));
+
+  float gl = lightDisk(p, L, max(uBulbRadius, 0.05) * 1.4) * uBulbInten * bloom;
+  float amt = clamp(gl * (0.35 + 0.65 * bands), 0.0, 1.0);
+  float hue = uHue + fbm(q) * 120.0 + uTime * 16.0;
   vec3 col = mix(baseBg(), accentAt(hue), amt * budget());
   fragColor = vec4(col, clamp(gl, 0.0, 1.0));
 }

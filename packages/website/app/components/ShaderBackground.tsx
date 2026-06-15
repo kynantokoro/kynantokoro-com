@@ -277,6 +277,8 @@ export default function ShaderBackground() {
       if (r) g.uniform2f(r, resW, resH);
       const t = u("uTime");
       if (t) g.uniform1f(t, timeSec);
+      const ip = u("uIntro");
+      if (ip) g.uniform1f(ip, introProgress);
       const m = u("uMouse");
       if (m) g.uniform2f(m, smx, smy);
       const lt = u("uLight");
@@ -304,6 +306,7 @@ export default function ShaderBackground() {
     let rafId = 0;
     let introStart = performance.now();
     let frozen = false; // after the intro the last frame is held (≈0 GPU)
+    let introProgress = 1; // 0->1 across the intro (drives the entrance bloom)
 
     const loop = (ts: number) => {
       if (!visible) {
@@ -333,6 +336,7 @@ export default function ShaderBackground() {
       if (dt > 0.1) dt = 0.1;
       if (dt < 0) dt = 0;
       timeSec += dt;
+      introProgress = reduced ? 1 : Math.min(1, (ts - introStart) / INTRO_MS);
 
       resize();
 
