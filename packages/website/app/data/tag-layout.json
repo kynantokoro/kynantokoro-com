@@ -1,0 +1,32 @@
+{
+  "hash": "97b3dc24",
+  "generatedAt": "2026-06-14T12:00:00.000Z",
+  "model": "manual-seed",
+  "clusters": [
+    {
+      "id": "web-platform",
+      "name": { "en": "Web Platform & CMS", "ja": "Web基盤・CMS" },
+      "tags": ["Cache-Control", "FOUC", "Sanity CMS"]
+    },
+    {
+      "id": "systems-graphics",
+      "name": { "en": "Systems & Graphics", "ja": "システム・グラフィックス" },
+      "tags": ["programming", "sokol", "c", "wasm"]
+    },
+    {
+      "id": "creative-art",
+      "name": { "en": "Creative & Art", "ja": "クリエイティブ・アート" },
+      "tags": ["art", "Flipnote Studio"]
+    },
+    {
+      "id": "workflow-tools",
+      "name": { "en": "Workflow & Tools", "ja": "ワークフロー・ツール" },
+      "tags": ["workflow", "tools"]
+    },
+    {
+      "id": "meta-test",
+      "name": { "en": "Meta / Test", "ja": "メタ・テスト" },
+      "tags": ["test", "テスト"]
+    }
+  ]
+}

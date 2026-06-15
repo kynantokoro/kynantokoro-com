@@ -6,21 +6,6 @@ export default defineType({
   type: 'document',
   title: 'Entry',
   fields: [
-    // Entry type selector
-    defineField({
-      name: 'entryType',
-      type: 'string',
-      title: 'Type',
-      options: {
-        list: [
-          {title: 'Weekly Project', value: 'weekly-project'},
-          {title: 'Blog Post', value: 'blog'},
-        ],
-        layout: 'radio',
-      },
-      validation: (Rule) => Rule.required(),
-    }),
-
     // Common fields
     defineField({
       name: 'slug',
@@ -101,22 +86,15 @@ export default defineType({
         }),
       ],
     }),
-
-    // Weekly Project-specific fields (hidden for blog posts)
     defineField({
-      name: 'week',
-      type: 'number',
-      title: 'Week Number',
-      description: 'The week number for this Weekly Project entry. Examples: 1, 2, 3, etc.',
-      placeholder: '1',
-      hidden: ({document}) => document?.entryType !== 'weekly-project',
-      validation: (Rule) =>
-        Rule.custom((week, context) => {
-          if (context.document?.entryType === 'weekly-project' && !week) {
-            return 'Week number is required for Weekly Project entries'
-          }
-          return true
-        }),
+      name: 'summary',
+      type: 'object',
+      title: 'Summary',
+      description: 'Short summary used for the tag index, structured data, and Markdown output (AX). Optional.',
+      fields: [
+        defineField({name: 'en', type: 'text', rows: 2, title: 'English'}),
+        defineField({name: 'ja', type: 'text', rows: 2, title: 'Japanese'}),
+      ],
     }),
 
     // Translation flags
@@ -140,19 +118,13 @@ export default defineType({
     select: {
       titleEn: 'title.en',
       titleJa: 'title.ja',
-      entryType: 'entryType',
-      week: 'week',
       date: 'date',
     },
-    prepare({titleEn, titleJa, entryType, week, date}) {
+    prepare({titleEn, titleJa, date}) {
       const title = titleEn || titleJa || 'Untitled'
-      const subtitle =
-        entryType === 'weekly-project'
-          ? `Weekly Project Week ${week} • ${date}`
-          : `Blog • ${date}`
       return {
         title,
-        subtitle,
+        subtitle: date,
       }
     },
   },
