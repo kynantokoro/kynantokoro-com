@@ -7,11 +7,15 @@ import {
   forceY,
   type SimulationNodeDatum,
 } from 'd3-force';
-import { select } from 'd3-selection';
+import { pointer, select } from 'd3-selection';
 import { zoom, type ZoomBehavior } from 'd3-zoom';
 import { MAP_WIDTH, MAP_HEIGHT, type BubbleNode } from '../../lib/tagLayout';
 
 type SimNode = BubbleNode & SimulationNodeDatum;
+
+// Invisible node pinned to the cursor so bubbles part around it.
+const CURSOR_TAG = '__cursor__';
+const CURSOR_RADIUS = 42;
 
 function clusterColor(index: number): string {
   // Golden-ish hue spread per cluster; readable in light & dark.
@@ -39,9 +43,26 @@ export default function TagBubbleMap({ nodes, language, onSelect }: TagBubbleMap
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-    const sim = forceSimulation<SimNode>(simNodes)
-      .force('charge', forceManyBody<SimNode>().strength(-40))
-      .force('collide', forceCollide<SimNode>((d) => d.radius + 3).iterations(2))
+    // Pinned cursor node (off-screen until the pointer moves over the map).
+    const cursor: SimNode = {
+      tag: CURSOR_TAG,
+      count: 0,
+      radius: CURSOR_RADIUS,
+      clusterId: '',
+      clusterIndex: -1,
+      x: -9999,
+      y: -9999,
+      fx: -9999,
+      fy: -9999,
+    };
+    const allNodes = [...simNodes, cursor];
+
+    const sim = forceSimulation<SimNode>(allNodes)
+      .force('charge', forceManyBody<SimNode>().strength((d) => (d.tag === CURSOR_TAG ? 0 : -40)))
+      .force(
+        'collide',
+        forceCollide<SimNode>((d) => (d.tag === CURSOR_TAG ? d.radius : d.radius + 3)).iterations(2)
+      )
       .force('x', forceX<SimNode>((d) => targets.get(d.tag)?.x ?? d.x).strength(0.08))
       .force('y', forceY<SimNode>((d) => targets.get(d.tag)?.y ?? d.y).strength(0.08));
 
@@ -67,12 +88,30 @@ export default function TagBubbleMap({ nodes, language, onSelect }: TagBubbleMap
       zoomBehavior = zoom<SVGSVGElement, unknown>()
         .scaleExtent([0.4, 4])
         .on('zoom', (event) => g.setAttribute('transform', event.transform.toString()));
-      select(svg).call(zoomBehavior).on('dblclick.zoom', null);
+      const sel = select(svg);
+      sel.call(zoomBehavior).on('dblclick.zoom', null);
+
+      if (!reduced) {
+        sel
+          .on('pointerenter.cursor', () => {
+            sim.alphaTarget(0.12).restart();
+          })
+          .on('pointermove.cursor', (event) => {
+            const [mx, my] = pointer(event, g);
+            cursor.fx = mx;
+            cursor.fy = my;
+          })
+          .on('pointerleave.cursor', () => {
+            cursor.fx = -9999;
+            cursor.fy = -9999;
+            sim.alphaTarget(0);
+          });
+      }
     }
 
     return () => {
       sim.stop();
-      if (svg) select(svg).on('.zoom', null);
+      if (svg) select(svg).on('.zoom', null).on('.cursor', null);
     };
   }, [nodes]);
 
