@@ -2,11 +2,11 @@ import { Link, useSearchParams, useRouteLoaderData } from 'react-router';
 import { useLanguage } from '../contexts/language-context';
 import { getEmojiColor } from '../lib/emojiColors';
 import GeneratedKeyImage from './GeneratedKeyImage';
+import { buildTagSearch } from '../lib/tagFilter';
 import type { loader as languageLayoutLoader } from '../routes/language-layout';
 
 interface EntryCardProps {
   slug: string;
-  week?: number;
   title: {
     en: string;
     ja: string;
@@ -14,11 +14,10 @@ interface EntryCardProps {
   date: string;
   emoji?: number;
   imageSeed?: number;
-  tags: string[];
-  contentType: 'weekly-project' | 'blog';
+  tags?: string[];
 }
 
-export default function EntryCard({ slug, week, title, date, emoji, imageSeed, tags, contentType }: EntryCardProps) {
+export default function EntryCard({ slug, title, date, emoji, imageSeed, tags }: EntryCardProps) {
   const { language } = useLanguage();
   const [searchParams] = useSearchParams();
   const languageLayoutData = useRouteLoaderData<typeof languageLayoutLoader>('routes/language-layout');
@@ -38,13 +37,13 @@ export default function EntryCard({ slug, week, title, date, emoji, imageSeed, t
   const emojiColor = getEmojiColor(emoji || 2);
 
   return (
-    <Link
-      to={linkWithParams}
-      viewTransition={!isMobileUA}
-      prefetch={isMobileUA ? "viewport" : "intent"}
-      className="focus-invert group block py-4 border-b border-gray-200 dark:border-gray-700"
-    >
-      <div className="flex items-center gap-4">
+    <div className="py-4 border-b border-gray-200 dark:border-gray-700">
+      <Link
+        to={linkWithParams}
+        viewTransition={!isMobileUA}
+        prefetch={isMobileUA ? "viewport" : "intent"}
+        className="focus-invert group flex items-center gap-4"
+      >
         {/* Generated key image on LEFT side */}
         <GeneratedKeyImage
           seed={imageSeed ?? 0}
@@ -54,13 +53,6 @@ export default function EntryCard({ slug, week, title, date, emoji, imageSeed, t
 
         {/* Content on RIGHT side */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-2 mb-1">
-            {contentType === 'weekly-project' && week && (
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-300 font-serif">
-                Week {week}
-              </span>
-            )}
-          </div>
           <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 font-serif transition-opacity duration-200 group-hover:opacity-60">
             {displayTitle}
           </h2>
@@ -71,20 +63,23 @@ export default function EntryCard({ slug, week, title, date, emoji, imageSeed, t
               day: 'numeric',
             })}
           </p>
-          {tags.length > 0 && (
-            <div className="flex gap-2 mt-2">
-              {tags.slice(0, 3).map(tag => (
-                <span
-                  key={tag}
-                  className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded font-serif transition-opacity duration-200 group-hover:opacity-60"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
-      </div>
-    </Link>
+      </Link>
+
+      {tags && tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2 pl-24">
+          {tags.map((tag) => (
+            <Link
+              key={tag}
+              to={`/${language}${buildTagSearch(searchParams, { add: tag })}`}
+              viewTransition={!isMobileUA}
+              className="focus-invert text-xs font-serif text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            >
+              {`#${tag}`}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

@@ -36,7 +36,7 @@ Thumbs.db
 *~
 
 # AI
-.claude/
+.claude/settings.local.json
 
 # TypeScript
 *.tsbuildinfo

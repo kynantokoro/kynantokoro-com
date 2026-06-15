@@ -65,35 +65,33 @@ export function createUrlFor(sanityClient: SanityClient) {
 
 // GROQ queries for fetching content
 export const queries = {
-  // Get all entries (Weekly Project entries + blog posts) sorted by date
+  // Get all entries sorted by date
   allEntries: `*[_type == "entry"] | order(date desc) {
     _id,
     "slug": slug.current,
-    entryType,
     title,
     date,
     emoji,
     imageSeed,
     tags,
-    week,
+    summary,
     enIsTranslated,
     jaIsTranslated,
     "hasEn": defined(content.en) && length(content.en) > 0,
     "hasJa": defined(content.ja) && length(content.ja) > 0
   }`,
 
-  // Get single entry by slug (works for both Weekly Project and blog)
+  // Get single entry by slug
   entryBySlug: `*[_type == "entry" && slug.current == $slug][0] {
     _id,
     "slug": slug.current,
-    entryType,
     title,
     date,
     emoji,
     imageSeed,
     tags,
+    summary,
     content,
-    week,
     enIsTranslated,
     jaIsTranslated,
     "hasEn": defined(content.en) && length(content.en) > 0,

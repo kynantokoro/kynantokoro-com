@@ -1,5 +1,5 @@
 import type { Route } from "./+types/entry.$slug";
-import { Link } from "react-router";
+import { Link, useSearchParams, useRouteLoaderData } from "react-router";
 import { useLanguage } from "../contexts/language-context";
 import Header from "../components/Header";
 import { createSanityClient, queries, type SanityEnv } from '../lib/sanity';
@@ -7,11 +7,27 @@ import { getEmojiColor } from '../lib/emojiColors';
 import { PortableText } from '@portabletext/react';
 import { createPortableTextComponents } from '../components/portable-text/portableTextComponents';
 import GeneratedKeyImage from '../components/GeneratedKeyImage';
+import { blogPostingLd } from '../lib/jsonLd';
+import type { TagEntry } from '../lib/tags';
+import { buildTagSearch } from '../lib/tagFilter';
+import type { loader as languageLayoutLoader } from "./language-layout";
 
 export function meta({ params, data }: Route.MetaArgs) {
-  const title = data?.entry?.metadata?.title?.en;
-  const url = `https://kynantokoro.com/en/entry/${params.slug}`;
+  const lang = params.lang === 'ja' ? 'ja' : 'en';
+  const title = data?.entry?.metadata?.title?.[lang] || data?.entry?.metadata?.title?.en;
+  const url = `https://kynantokoro.com/${lang}/entry/${params.slug}`;
+  const mdUrl = `${url}.md`;
   const ogImage = "https://kynantokoro.com/og-image.jpg";
+
+  const tags: TagEntry | null = data?.entry
+    ? {
+        slug: data.entry.slug,
+        title: data.entry.metadata.title,
+        date: data.entry.metadata.date,
+        summary: data.entry.metadata.summary,
+        tags: data.entry.metadata.tags,
+      }
+    : null;
 
   return [
     { title },
@@ -23,6 +39,8 @@ export function meta({ params, data }: Route.MetaArgs) {
     { name: "twitter:card", content: "summary_large_image" },
     { name: "twitter:title", content: title },
     { name: "twitter:image", content: ogImage },
+    { tagName: "link", rel: "alternate", type: "text/markdown", href: mdUrl },
+    ...(tags ? [{ "script:ld+json": blogPostingLd(tags, { lang }) }] : []),
   ];
 }
 
@@ -42,14 +60,13 @@ export async function loader({ params, context }: Route.LoaderArgs) {
 
   const entry = {
     slug: sanityEntry.slug,
-    type: sanityEntry.entryType,
     metadata: {
       title: sanityEntry.title || { en: 'Untitled', ja: 'Untitled' },
-      week: sanityEntry.week,
       date: sanityEntry.date,
       tags: sanityEntry.tags || [],
       emoji: sanityEntry.emoji || 1,
       imageSeed: sanityEntry.imageSeed ?? 0,
+      summary: sanityEntry.summary,
       enIsTranslated: sanityEntry.enIsTranslated || false,
       jaIsTranslated: sanityEntry.jaIsTranslated || false,
     },
@@ -71,6 +88,9 @@ export function headers() {
 export default function EntryPage({ loaderData }: Route.ComponentProps) {
   const { language } = useLanguage();
   const { entry, projectId, dataset } = loaderData;
+  const [searchParams] = useSearchParams();
+  const languageLayoutData = useRouteLoaderData<typeof languageLayoutLoader>('routes/language-layout');
+  const isMobileUA = languageLayoutData?.isMobileUA ?? false;
 
   const displayTitle = entry.metadata.title?.[language as keyof typeof entry.metadata.title] ||
                         entry.metadata.title?.[language === 'en' ? 'ja' : 'en'] ||
@@ -80,8 +100,6 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
   const portableTextComponents = projectId && dataset
     ? createPortableTextComponents(projectId, dataset)
     : undefined;
-
-  const isWeeklyProject = entry.type === 'weekly-project';
 
   return (
     <div className="min-h-screen">
@@ -101,12 +119,6 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-baseline gap-3 mb-2">
-            {/* Show week number only for Weekly Project entries */}
-            {isWeeklyProject && entry.metadata.week && (
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-300 font-serif">
-                Week {entry.metadata.week}
-              </span>
-            )}
             <span className="text-xs text-gray-400 dark:text-gray-400 font-serif">
               {new Date(entry.metadata.date).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US', {
                 year: 'numeric',
@@ -119,14 +131,16 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
             {displayTitle}
           </h1>
           {entry.metadata.tags && entry.metadata.tags.length > 0 && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {entry.metadata.tags.map((tag: string) => (
-                <span
+                <Link
                   key={tag}
-                  className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded font-serif"
+                  to={`/${language}${buildTagSearch(searchParams, { add: tag })}`}
+                  viewTransition={!isMobileUA}
+                  className="focus-invert text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded font-serif hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
                 >
-                  {tag}
-                </span>
+                  {`#${tag}`}
+                </Link>
               ))}
             </div>
           )}

@@ -13,7 +13,7 @@
 .dev.vars*
 worker-configuration.d.ts
 
-# Wrangler / Node tool caches (regenerated on typecheck & build)
+# Toolchain caches
 /node-compile-cache/
 /update-check/
 
