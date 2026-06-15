@@ -71,10 +71,6 @@ export default function SearchPalette({ items, language, isMobileUA, onClose }: 
       return title.includes(q) || i.tags.some((t) => t.toLowerCase().includes(q));
     });
   }, [q, items]);
-  const mapNodes = useMemo(
-    () => (q && mode === 'tagmap' ? nodes.filter((n) => n.tag.toLowerCase().includes(q)) : nodes),
-    [q, mode, nodes]
-  );
 
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
@@ -152,29 +148,33 @@ export default function SearchPalette({ items, language, isMobileUA, onClose }: 
               </button>
             ))}
           </div>
-          <div className="relative flex-1 min-w-0">
-            <svg
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
-            </svg>
-            <input
-              ref={inputRef}
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={
-                mode === 'tagmap'
-                  ? language === 'ja' ? 'タグを絞り込み…' : 'Filter tags…'
-                  : language === 'ja' ? 'タイトル・タグを検索…' : 'Search title or tag…'
-              }
-              className="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm font-serif text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none focus:ring-2 focus:ring-yellow-500"
-            />
-          </div>
+          {mode === 'text' ? (
+            <div className="relative flex-1 min-w-0">
+              <svg
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+              </svg>
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={language === 'ja' ? 'タイトル・タグを検索…' : 'Search title or tag…'}
+                className="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm font-serif text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none focus:ring-2 focus:ring-yellow-500"
+              />
+            </div>
+          ) : (
+            <p className="flex-1 min-w-0 truncate text-xs font-serif text-gray-400 px-2">
+              {language === 'ja'
+                ? 'バブルをクリックで絞り込み・ドラッグで移動'
+                : 'Click a bubble to filter · drag to pan'}
+            </p>
+          )}
           <button
             onClick={onClose}
             aria-label={language === 'ja' ? '閉じる' : 'Close'}
@@ -232,7 +232,7 @@ export default function SearchPalette({ items, language, isMobileUA, onClose }: 
           ) : (
             <div className="relative h-full">
               <Suspense fallback={<div className="w-full h-full" />}>
-                <TagBubbleMap nodes={mapNodes} language={language} onSelect={selectTag} />
+                <TagBubbleMap nodes={nodes} language={language} onSelect={selectTag} />
               </Suspense>
             </div>
           )}
