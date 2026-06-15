@@ -168,22 +168,11 @@ void main(){
   vec2 fc = gl_FragCoord.xy * uPaperScale;
   float grain = mix(hash12(fc), hash12(floor(fc * 0.5)), 0.4) - 0.5;
   float fib = hash12(vec2(floor(fc.x * 0.2), floor(fc.y))) - 0.5;
-  float scr = 0.0;
-  for (int i = 0; i < 2; i++){
-    float fi = float(i);
-    float ang = hash12(vec2(fi, 7.0)) * 3.1416;
-    vec2 dir = vec2(cos(ang), sin(ang));
-    vec2 ctr = vec2(hash12(vec2(fi, 8.0)) * ar, hash12(vec2(fi, 10.0)));
-    vec2 rel = uv * vec2(ar, 1.0) - ctr;
-    float across = abs(dot(rel, vec2(-dir.y, dir.x)));
-    float along = dot(rel, dir);
-    scr -= step(across, 0.001) * smoothstep(0.35, 0.0, abs(along)) * 0.25;
-  }
   float vig = smoothstep(1.15, 0.5, length((uv - 0.5) * vec2(ar, 1.0)));
   // Multiplicative grain reads far stronger on the light (near-white) base than
   // on dark, so ease it down in light mode.
   float pInten = uPaperInten * mix(0.06, 1.0, uTheme);
-  col *= 1.0 + (grain * 0.7 + fib * 0.3 + scr) * pInten;
+  col *= 1.0 + (grain * 0.7 + fib * 0.3) * pInten;
   col *= mix(1.0, 0.9, (1.0 - vig) * pInten);
 
   fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
