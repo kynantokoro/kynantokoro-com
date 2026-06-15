@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useShader } from "../contexts/shader-context";
-import { getShaderDef, PARAM_DEFS, VERTEX_SRC, type ShaderDef } from "../lib/shaders";
+import { DEFAULT_PARAMS, DEFAULT_SHADER, getShaderDef, PARAM_DEFS, VERTEX_SRC, type ShaderDef } from "../lib/shaders";
 
 const MAX_RIPPLES = 8;
 const RIPPLE_LIFE = 2.6; // seconds
@@ -51,30 +51,23 @@ type Compiled = CompiledSimple | CompiledFeedback | CompiledPostfx;
  * from window-level listeners so links and scrolling keep working.
  */
 export default function ShaderBackground() {
-  const { shader, accentHue, revealId, params } = useShader();
+  const { accentHue, revealId } = useShader();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Live values the render loop reads without re-running the setup effect.
-  const shaderRef = useRef(shader);
-  shaderRef.current = shader;
+  // Live value the render loop reads without re-running the setup effect.
   const accentHueRef = useRef(accentHue); // target hue (current page's key visual)
   accentHueRef.current = accentHue;
-  const paramsRef = useRef(params);
-  paramsRef.current = params;
 
   // Let effects (re)start / re-trigger the loop without re-running setup.
   const kickRef = useRef<(() => void) | null>(null);
   const revealRef = useRef<(() => void) | null>(null);
 
-  // Reveal the wallpaper by making the page background transparent only while
-  // a shader is selected.
+  // The wallpaper is always on: make the page background transparent so the
+  // canvas shows through. (root.tsx's inline script already sets this on first
+  // paint; this keeps it set after hydration.)
   useEffect(() => {
-    document.documentElement.classList.toggle("shader-active", shader !== "off");
-  }, [shader]);
-
-  useEffect(() => {
-    if (shader !== "off") kickRef.current?.();
-  }, [shader]);
+    document.documentElement.classList.add("shader-active");
+  }, []);
 
   // Every reveal() — each page mount/navigation, and theme flips — animates the
   // wallpaper toward that page's key-visual colour, blending from the current
@@ -306,10 +299,10 @@ export default function ShaderBackground() {
       if (a) g.uniform1f(a, Math.min(1, activity));
       const mo = u("uMotion");
       if (mo) g.uniform1f(mo, motion);
-      // Live-tunable look parameters (?tune slider panel).
+      // Fixed look parameters (defaults baked in; see PARAM_DEFS).
       for (const dParam of PARAM_DEFS) {
         const loc = u(dParam.uniform);
-        if (loc) g.uniform1f(loc, paramsRef.current[dParam.key]);
+        if (loc) g.uniform1f(loc, DEFAULT_PARAMS[dParam.key]);
       }
     }
 
@@ -360,9 +353,8 @@ export default function ShaderBackground() {
         rafId = 0;
         return;
       }
-      const def = getShaderDef(shaderRef.current);
+      const def = getShaderDef(DEFAULT_SHADER);
       if (!def) {
-        // "off": stop the loop entirely; the [shader] effect restarts it.
         rafId = 0;
         return;
       }
@@ -501,7 +493,7 @@ export default function ShaderBackground() {
       frozen = false;
       introStart = performance.now();
       lastTs = performance.now() - FRAME_MS;
-      if (!rafId && visible && shaderRef.current !== "off") {
+      if (!rafId && visible) {
         rafId = requestAnimationFrame(loop);
       }
     };

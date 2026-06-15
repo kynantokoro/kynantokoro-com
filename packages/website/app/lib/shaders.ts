@@ -11,8 +11,8 @@
 // the last frame and stops drawing entirely (see ShaderBackground). Each fresh
 // landing differs because the home key-visual hue is randomised.
 //
-// Look parameters are uniforms (PARAM_DEFS) tunable live with the ?tune=1
-// slider panel. Contrast: the scene composites through mix(baseBg, accent,
+// Look parameters are uniforms with fixed defaults (PARAM_DEFS / DEFAULT_PARAMS).
+// Contrast: the scene composites through mix(baseBg, accent,
 // amount*budget()) to keep functional text at WCAG AA (budget defaults below);
 // the flare/paper overlays are tunable and can dip below AA at high values.
 

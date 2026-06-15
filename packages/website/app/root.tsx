@@ -14,7 +14,6 @@ import type { Route } from "./+types/root";
 import "./app.css";
 import { ShaderProvider } from "./contexts/shader-context";
 import ShaderBackground from "./components/ShaderBackground";
-import ShaderTunePanel from "./components/ShaderTunePanel";
 
 // No loader needed - theme is managed client-side with localStorage
 
@@ -68,11 +67,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 }
                 document.documentElement.setAttribute('data-theme', theme);
 
-                // Reveal the shader wallpaper from first paint (default on).
-                var bg = localStorage.getItem('bg-shader');
-                if (bg ? bg !== 'off' : true) {
-                  document.documentElement.classList.add('shader-active');
-                }
+                // The shader wallpaper is always on; reveal it from first paint.
+                document.documentElement.classList.add('shader-active');
               })();
             `,
           }}
@@ -85,7 +81,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <ShaderProvider>
           <ShaderBackground />
           {children}
-          <ShaderTunePanel />
         </ShaderProvider>
         <ScrollRestoration
           getKey={(location) => {
