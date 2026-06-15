@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLanguage } from '../contexts/language-context';
 import { useShader } from '../contexts/shader-context';
+import { keyVisualHue, type RGB } from '../lib/keyVisualColor';
 
 interface HomeHeaderProps {
   hueRotate: number;
@@ -9,10 +10,50 @@ interface HomeHeaderProps {
 export default function HomeHeader({ hueRotate }: HomeHeaderProps) {
   const { language } = useLanguage();
   const { setAccentHue } = useShader();
+  const imgRef = useRef<HTMLImageElement>(null);
 
-  // Echo the key visual's randomised hue in the shader wallpaper.
+  // Echo the key visual's ACTUAL displayed colour in the shader wallpaper:
+  // sample the GIF, replay its CSS filter (invert in light + hue-rotate) and use
+  // the resulting hue. Recomputed when the theme flips (invert changes it).
   useEffect(() => {
-    setAccentHue(hueRotate);
+    const img = imgRef.current;
+    if (!img) return;
+    let cancelled = false;
+    const sample = () => {
+      if (cancelled || !img.complete || img.naturalWidth === 0) return;
+      try {
+        const cv = document.createElement('canvas');
+        cv.width = 24;
+        cv.height = 32;
+        const ctx = cv.getContext('2d', { willReadFrequently: true });
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, 24, 32);
+        const data = ctx.getImageData(0, 0, 24, 32).data;
+        let r = 0, g = 0, b = 0, n = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i + 3] < 10) continue;
+          r += data[i];
+          g += data[i + 1];
+          b += data[i + 2];
+          n++;
+        }
+        if (!n) return;
+        const avg: RGB = [r / n / 255, g / n / 255, b / n / 255];
+        const isDark = document.documentElement.classList.contains('dark');
+        setAccentHue(keyVisualHue(avg, hueRotate, isDark));
+      } catch {
+        setAccentHue(hueRotate); // canvas blocked — fall back to the raw hue
+      }
+    };
+    if (img.complete) sample();
+    else img.addEventListener('load', sample, { once: true });
+    const obs = new MutationObserver(sample);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => {
+      cancelled = true;
+      img.removeEventListener('load', sample);
+      obs.disconnect();
+    };
   }, [hueRotate, setAccentHue]);
 
   const profile = {
@@ -35,6 +76,7 @@ export default function HomeHeader({ hueRotate }: HomeHeaderProps) {
         <div className="flex-shrink-0">
           <div className="w-36 h-48 overflow-hidden">
             <img
+              ref={imgRef}
               src="/DSANIM1.gif"
               alt={currentProfile.name}
               className="w-full h-full object-cover light-mode-invert"

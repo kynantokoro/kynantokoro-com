@@ -75,6 +75,12 @@ export default function ShaderBackground() {
     if (shader !== "off") kickRef.current?.();
   }, [shader]);
 
+  // Re-reveal in the new colour when the key-visual hue changes (landing on or
+  // navigating to home with a fresh random hue, or toggling theme).
+  useEffect(() => {
+    kickRef.current?.();
+  }, [accentHue]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
