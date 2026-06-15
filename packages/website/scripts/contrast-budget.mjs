@@ -18,7 +18,7 @@ const TARGET = 4.5; // WCAG AA, normal text
 // --- accent appearance (must match HEAD in app/lib/shaders.ts) -------------
 const ACCENT = {
   light: { s: 0.5, v: 0.62 },
-  dark: { s: 0.55, v: 0.66 },
+  dark: { s: 0.8, v: 0.66 },
 };
 const BASE = {
   light: [0.961, 0.965, 0.973],

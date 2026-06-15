@@ -123,7 +123,7 @@ vec3 hsv2rgb(vec3 c){
 vec3 baseBg(){ return mix(vec3(0.961, 0.965, 0.973), vec3(0.067, 0.094, 0.153), uTheme); }
 vec3 accentAt(float hueDeg){
   float h = fract(hueDeg / 360.0);
-  float s = mix(0.50, 0.55, uTheme);
+  float s = mix(0.50, 0.80, uTheme);
   float v = mix(0.62, 0.66, uTheme);
   return hsv2rgb(vec3(h, s, v));
 }
@@ -213,7 +213,9 @@ void main(){
 
   float gl = lightDisk(p, L, max(uBulbRadius, 0.05) * 1.4) * uBulbInten * bloom;
   float amt = clamp(gl * (0.35 + 0.65 * bands), 0.0, 1.0);
-  float hue = uHue + fbm(q) * 120.0 + uTime * 16.0;
+  // Stay close to the key-visual hue (uHue): small spatial variation, no time
+  // spin — so the wallpaper colour actually matches the key visual.
+  float hue = uHue + (fbm(q) - 0.5) * 16.0;
   vec3 col = mix(baseBg(), accentAt(hue), amt * budget());
   fragColor = vec4(col, clamp(gl, 0.0, 1.0));
 }
