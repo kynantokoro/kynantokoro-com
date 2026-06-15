@@ -4,7 +4,9 @@ import { getShaderDef, PARAM_DEFS, VERTEX_SRC, type ShaderDef } from "../lib/sha
 
 const MAX_RIPPLES = 8;
 const RIPPLE_LIFE = 2.6; // seconds
-const DPR_CAP = 1.75;
+const DPR_CAP = 1.25; // background is soft/grainy — a low cap saves a lot of GPU
+const FPS_CAP = 32; // the wallpaper moves slowly; 32fps halves GPU vs 60
+const FRAME_MS = 1000 / FPS_CAP;
 const SIM_SCALE = 0.5; // feedback simulation runs at half the canvas resolution
 const SIM_MAX_DIM = 480; // ...capped so large screens stay cheap
 
@@ -267,6 +269,7 @@ export default function ShaderBackground() {
     let theme = document.documentElement.classList.contains("dark") ? 1 : 0;
     const themeObserver = new MutationObserver(() => {
       theme = document.documentElement.classList.contains("dark") ? 1 : 0;
+      kickRef.current?.();
     });
     themeObserver.observe(document.documentElement, {
       attributes: true,
@@ -277,6 +280,7 @@ export default function ShaderBackground() {
     let motion = reducedQuery.matches ? 0 : 1;
     const onReducedChange = () => {
       motion = reducedQuery.matches ? 0 : 1;
+      kickRef.current?.();
     };
     reducedQuery.addEventListener("change", onReducedChange);
 
@@ -316,6 +320,8 @@ export default function ShaderBackground() {
     let timeSec = 0;
     let lastTs = performance.now();
     let rafId = 0;
+    let needsRedraw = true; // forces a draw on theme/resize/shader change
+    let lastShaderDrawn = "";
 
     const loop = (ts: number) => {
       if (!visible) {
@@ -328,12 +334,24 @@ export default function ShaderBackground() {
         rafId = 0;
         return;
       }
-      rafId = requestAnimationFrame(loop);
+      if (def.id !== lastShaderDrawn) needsRedraw = true;
+
+      // Throttle GPU work to save battery: animate at ~FPS_CAP, and when motion
+      // is off (prefers-reduced-motion) draw once on demand then stop the loop.
+      if (motion > 0) {
+        rafId = requestAnimationFrame(loop);
+        if (ts - lastTs < FRAME_MS) return;
+      } else {
+        rafId = 0;
+        if (!needsRedraw) return;
+      }
 
       let dt = (ts - lastTs) / 1000;
       lastTs = ts;
       if (dt > 0.1) dt = 0.1;
       if (dt < 0) dt = 0;
+      needsRedraw = false;
+      lastShaderDrawn = def.id;
 
       timeSec += dt * motion; // frozen under prefers-reduced-motion
 
@@ -444,22 +462,28 @@ export default function ShaderBackground() {
       }
     };
 
-    const start = () => {
-      if (rafId || !visible || shaderRef.current === "off") return;
-      lastTs = performance.now();
-      rafId = requestAnimationFrame(loop);
+    const kick = () => {
+      needsRedraw = true;
+      lastTs = performance.now() - FRAME_MS; // allow an immediate draw
+      if (!rafId && visible && shaderRef.current !== "off") {
+        rafId = requestAnimationFrame(loop);
+      }
     };
-    kickRef.current = start;
+    kickRef.current = kick;
 
     const onVisibility = () => {
       visible = !document.hidden;
-      if (visible) start();
+      if (visible) kick();
+    };
+    const onResize = () => {
+      resize();
+      kick();
     };
     document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("resize", resize, { passive: true });
+    window.addEventListener("resize", onResize, { passive: true });
 
     resize();
-    start();
+    kick();
 
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
@@ -467,7 +491,7 @@ export default function ShaderBackground() {
       kickRef.current = null;
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("resize", resize);
+      window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisibility);
       reducedQuery.removeEventListener("change", onReducedChange);
       themeObserver.disconnect();

@@ -183,9 +183,9 @@ void main(){
   vec3 col = texture(uScene, uv).rgb;
 
   float fl = 0.0;
-  for (int i = 1; i <= 16; i++){
-    float dist = float(i) / 16.0;
-    float fall = exp(-dist * 5.0 / max(uFlareLen, 0.05)) / 16.0;
+  for (int i = 1; i <= 10; i++){
+    float dist = float(i) / 10.0;
+    float fall = exp(-dist * 5.0 / max(uFlareLen, 0.05)) / 10.0;
     float off = dist * uFlareLen;
     fl += (texture(uScene, uv + vec2(off, 0.0)).a + texture(uScene, uv - vec2(off, 0.0)).a
          + texture(uScene, uv + vec2(0.0, off)).a + texture(uScene, uv - vec2(0.0, off)).a) * fall;
