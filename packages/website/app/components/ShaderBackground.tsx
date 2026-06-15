@@ -7,6 +7,7 @@ const RIPPLE_LIFE = 2.6; // seconds
 const DPR_CAP = 1.25; // background is soft/grainy — a low cap saves a lot of GPU
 const FPS_CAP = 32; // the wallpaper moves slowly; 32fps halves GPU vs 60
 const FRAME_MS = 1000 / FPS_CAP;
+const INTRO_MS = 5000; // animate this long on load, then freeze the last frame
 const SIM_SCALE = 0.5; // feedback simulation runs at half the canvas resolution
 const SIM_MAX_DIM = 480; // ...capped so large screens stay cheap
 
@@ -161,11 +162,7 @@ export default function ShaderBackground() {
     // ---- canvas sizing -----------------------------------------------------
     let cw = 0;
     let ch = 0;
-    let cssW = 0; // canvas CSS size, used to normalize pointer coordinates
-    let cssH = 0;
     function resize() {
-      cssW = canvas!.clientWidth;
-      cssH = canvas!.clientHeight;
       const dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
       const w = Math.max(1, Math.floor(canvas!.clientWidth * dpr));
       const h = Math.max(1, Math.floor(canvas!.clientHeight * dpr));
@@ -238,33 +235,18 @@ export default function ShaderBackground() {
     }
 
     // ---- pointer / theme / motion state ------------------------------------
-    let tmx = 0.5;
-    let tmy = 0.5; // target mouse (normalised, y-up)
-    let smx = 0.5;
-    let smy = 0.5; // smoothed mouse
-    let lightX = 0.5; // slow-follow light position (frosted-glass bulb)
-    let lightY = 0.5;
-    let vx = 0;
-    let vy = 0; // smoothed velocity
-    let activity = 0;
+    // Non-interactive: the light is fixed at the centre and the shader adds its
+    // own autonomous drift. (These stay constant; kept for setCommon and the
+    // unused simple/feedback code paths.)
+    const smx = 0.5;
+    const smy = 0.5;
+    const lightX = 0.5;
+    const lightY = 0.5;
+    const vx = 0;
+    const vy = 0;
+    const activity = 0;
     const ripples: { x: number; y: number; t: number }[] = [];
-    let click = { x: 0.5, y: 0.5, t: -100 };
-
-    const onMove = (e: PointerEvent) => {
-      tmx = e.clientX / (cssW || window.innerWidth);
-      tmy = 1 - e.clientY / (cssH || window.innerHeight);
-      activity = 1;
-    };
-    const onDown = (e: PointerEvent) => {
-      const x = e.clientX / (cssW || window.innerWidth);
-      const y = 1 - e.clientY / (cssH || window.innerHeight);
-      ripples.push({ x, y, t: timeSec });
-      if (ripples.length > MAX_RIPPLES) ripples.shift();
-      click = { x, y, t: timeSec };
-      activity = 1;
-    };
-    window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("pointerdown", onDown, { passive: true });
+    const click = { x: 0.5, y: 0.5, t: -100 };
 
     let theme = document.documentElement.classList.contains("dark") ? 1 : 0;
     const themeObserver = new MutationObserver(() => {
@@ -317,11 +299,11 @@ export default function ShaderBackground() {
     }
 
     // ---- render loop -------------------------------------------------------
-    let timeSec = 0;
+    let timeSec = Math.random() * 1000; // random phase so each landing differs
     let lastTs = performance.now();
     let rafId = 0;
-    let needsRedraw = true; // forces a draw on theme/resize/shader change
-    let lastShaderDrawn = "";
+    let introStart = performance.now();
+    let frozen = false; // after the intro the last frame is held (≈0 GPU)
 
     const loop = (ts: number) => {
       if (!visible) {
@@ -334,48 +316,23 @@ export default function ShaderBackground() {
         rafId = 0;
         return;
       }
-      if (def.id !== lastShaderDrawn) needsRedraw = true;
-
-      // Throttle GPU work to save battery: animate at ~FPS_CAP, and when motion
-      // is off (prefers-reduced-motion) draw once on demand then stop the loop.
-      if (motion > 0) {
-        rafId = requestAnimationFrame(loop);
-        if (ts - lastTs < FRAME_MS) return;
-      } else {
+      if (frozen) {
         rafId = 0;
-        if (!needsRedraw) return;
+        return;
+      }
+
+      const reduced = motion === 0;
+      // Throttle to ~FPS_CAP while animating.
+      if (!reduced && ts - lastTs < FRAME_MS) {
+        rafId = requestAnimationFrame(loop);
+        return;
       }
 
       let dt = (ts - lastTs) / 1000;
       lastTs = ts;
       if (dt > 0.1) dt = 0.1;
       if (dt < 0) dt = 0;
-      needsRedraw = false;
-      lastShaderDrawn = def.id;
-
-      timeSec += dt * motion; // frozen under prefers-reduced-motion
-
-      const k = Math.min(1, dt * 9);
-      const px = smx;
-      const py = smy;
-      smx += (tmx - smx) * k;
-      smy += (tmy - smy) * k;
-      vx = dt > 0 ? (smx - px) / dt : 0;
-      vy = dt > 0 ? (smy - py) / dt : 0;
-      // Cursor attraction: gentle and only partial (stays mostly centred) so
-      // it is calm, not distracting. Multiplied by `motion`, so it freezes
-      // completely under prefers-reduced-motion (fully static wallpaper).
-      const targetLX = 0.5 + (tmx - 0.5) * 0.6;
-      const targetLY = 0.5 + (tmy - 0.5) * 0.6;
-      const kl = Math.min(1, dt * 0.9) * motion;
-      lightX += (targetLX - lightX) * kl;
-      lightY += (targetLY - lightY) * kl;
-      const vlen = Math.hypot(vx, vy);
-      if (vlen > 3) {
-        vx *= 3 / vlen;
-        vy *= 3 / vlen;
-      }
-      activity *= Math.exp(-dt * 1.6);
+      timeSec += dt;
 
       resize();
 
@@ -460,11 +417,23 @@ export default function ShaderBackground() {
         setCommon(compiled.show.u, cw, ch);
         g.drawArrays(g.TRIANGLES, 0, 3);
       }
+
+      // Play a short intro, then freeze the last frame and stop drawing
+      // entirely (≈0 GPU while reading). Re-kicked on theme/resize/re-select;
+      // reduced-motion shows a single static frame immediately.
+      if (reduced || ts - introStart >= INTRO_MS) {
+        frozen = true;
+        rafId = 0;
+        return;
+      }
+      rafId = requestAnimationFrame(loop);
     };
 
+    // (Re)play the intro: unfreeze, reset the clock, and start the loop.
     const kick = () => {
-      needsRedraw = true;
-      lastTs = performance.now() - FRAME_MS; // allow an immediate draw
+      frozen = false;
+      introStart = performance.now();
+      lastTs = performance.now() - FRAME_MS;
       if (!rafId && visible && shaderRef.current !== "off") {
         rafId = requestAnimationFrame(loop);
       }
@@ -473,7 +442,8 @@ export default function ShaderBackground() {
 
     const onVisibility = () => {
       visible = !document.hidden;
-      if (visible) kick();
+      // Resume an interrupted intro; if already frozen, keep the held frame.
+      if (visible && !frozen) kick();
     };
     const onResize = () => {
       resize();
@@ -489,8 +459,6 @@ export default function ShaderBackground() {
       if (rafId) cancelAnimationFrame(rafId);
       rafId = 0;
       kickRef.current = null;
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerdown", onDown);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisibility);
       reducedQuery.removeEventListener("change", onReducedChange);
