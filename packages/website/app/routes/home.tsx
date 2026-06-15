@@ -7,6 +7,7 @@ import HomeHeader from "../components/HomeHeader";
 import { createSanityClient, queries, type SanityEnv } from '../lib/sanity';
 import { type TagEntry } from '../lib/tags';
 import { blogLd } from '../lib/jsonLd';
+import { getActiveTags, matchesAllTags, buildTagSearch } from '../lib/tagFilter';
 import type { loader as languageLayoutLoader } from "./language-layout";
 
 export function meta({ params, data }: Route.MetaArgs) {
@@ -94,13 +95,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const { language } = useLanguage();
   const { entries, profileHue } = loaderData;
   const [searchParams] = useSearchParams();
-  const activeTag = searchParams.get('tag');
+  const activeTags = getActiveTags(searchParams);
   const languageLayoutData = useRouteLoaderData<typeof languageLayoutLoader>('routes/language-layout');
   const isMobileUA = languageLayoutData?.isMobileUA ?? false;
 
-  const visibleEntries = activeTag
-    ? entries.filter((e: Entry) => (e.metadata.tags || []).includes(activeTag))
-    : entries;
+  const visibleEntries = entries.filter((e: Entry) => matchesAllTags(e.metadata.tags, activeTags));
 
   return (
     <div className="min-h-screen">
@@ -111,23 +110,24 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       <section className="pb-8 px-8">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between gap-4 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
               <h2 className="text-lg font-serif font-semibold text-gray-900 dark:text-gray-100 shrink-0">
                 {language === 'ja' ? '記事' : 'Posts'}
               </h2>
-              {activeTag && (
+              {activeTags.map((tag) => (
                 <Link
-                  to={`/${language}`}
+                  key={tag}
+                  to={`/${language}${buildTagSearch(searchParams, { remove: tag })}`}
                   viewTransition={!isMobileUA}
-                  aria-label={language === 'ja' ? `タグ絞り込みを解除: #${activeTag}` : `Clear tag filter: #${activeTag}`}
+                  aria-label={language === 'ja' ? `タグ絞り込みを解除: #${tag}` : `Remove tag filter: #${tag}`}
                   className="focus-invert inline-flex items-center gap-1 min-w-0 px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-serif text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                 >
-                  <span className="truncate">{`#${activeTag}`}</span>
+                  <span className="truncate">{`#${tag}`}</span>
                   <svg className="w-3.5 h-3.5 shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </Link>
-              )}
+              ))}
             </div>
             <Link
               to={`/${language}/tags`}
@@ -153,12 +153,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                   date={entry.metadata.date}
                   emoji={entry.metadata.emoji}
                   imageSeed={entry.metadata.imageSeed}
+                  tags={entry.metadata.tags}
                 />
               ))
             ) : (
               <p className="text-gray-600 dark:text-gray-400 font-serif py-4">
-                {activeTag
-                  ? (language === 'ja' ? `#${activeTag} の記事はありません。` : `No posts tagged #${activeTag}.`)
+                {activeTags.length > 0
+                  ? (language === 'ja' ? '該当する記事はありません。' : 'No posts match these tags.')
                   : (language === 'ja' ? 'まだ投稿がありません。' : 'No posts yet.')}
               </p>
             )}

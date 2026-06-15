@@ -1,5 +1,5 @@
 import type { Route } from "./+types/entry.$slug";
-import { Link } from "react-router";
+import { Link, useSearchParams, useRouteLoaderData } from "react-router";
 import { useLanguage } from "../contexts/language-context";
 import Header from "../components/Header";
 import { createSanityClient, queries, type SanityEnv } from '../lib/sanity';
@@ -9,6 +9,8 @@ import { createPortableTextComponents } from '../components/portable-text/portab
 import GeneratedKeyImage from '../components/GeneratedKeyImage';
 import { blogPostingLd } from '../lib/jsonLd';
 import type { TagEntry } from '../lib/tags';
+import { buildTagSearch } from '../lib/tagFilter';
+import type { loader as languageLayoutLoader } from "./language-layout";
 
 export function meta({ params, data }: Route.MetaArgs) {
   const lang = params.lang === 'ja' ? 'ja' : 'en';
@@ -86,6 +88,9 @@ export function headers() {
 export default function EntryPage({ loaderData }: Route.ComponentProps) {
   const { language } = useLanguage();
   const { entry, projectId, dataset } = loaderData;
+  const [searchParams] = useSearchParams();
+  const languageLayoutData = useRouteLoaderData<typeof languageLayoutLoader>('routes/language-layout');
+  const isMobileUA = languageLayoutData?.isMobileUA ?? false;
 
   const displayTitle = entry.metadata.title?.[language as keyof typeof entry.metadata.title] ||
                         entry.metadata.title?.[language === 'en' ? 'ja' : 'en'] ||
@@ -125,14 +130,16 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
             {displayTitle}
           </h1>
           {entry.metadata.tags && entry.metadata.tags.length > 0 && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {entry.metadata.tags.map((tag: string) => (
-                <span
+                <Link
                   key={tag}
-                  className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded font-serif"
+                  to={`/${language}${buildTagSearch(searchParams, { add: tag })}`}
+                  viewTransition={!isMobileUA}
+                  className="focus-invert text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded font-serif hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
                 >
-                  {tag}
-                </span>
+                  {`#${tag}`}
+                </Link>
               ))}
             </div>
           )}

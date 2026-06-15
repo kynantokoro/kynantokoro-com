@@ -2,6 +2,7 @@ import { Link, useSearchParams, useRouteLoaderData } from 'react-router';
 import { useLanguage } from '../contexts/language-context';
 import { getEmojiColor } from '../lib/emojiColors';
 import GeneratedKeyImage from './GeneratedKeyImage';
+import { buildTagSearch } from '../lib/tagFilter';
 import type { loader as languageLayoutLoader } from '../routes/language-layout';
 
 interface EntryCardProps {
@@ -13,9 +14,10 @@ interface EntryCardProps {
   date: string;
   emoji?: number;
   imageSeed?: number;
+  tags?: string[];
 }
 
-export default function EntryCard({ slug, title, date, emoji, imageSeed }: EntryCardProps) {
+export default function EntryCard({ slug, title, date, emoji, imageSeed, tags }: EntryCardProps) {
   const { language } = useLanguage();
   const [searchParams] = useSearchParams();
   const languageLayoutData = useRouteLoaderData<typeof languageLayoutLoader>('routes/language-layout');
@@ -35,13 +37,13 @@ export default function EntryCard({ slug, title, date, emoji, imageSeed }: Entry
   const emojiColor = getEmojiColor(emoji || 2);
 
   return (
-    <Link
-      to={linkWithParams}
-      viewTransition={!isMobileUA}
-      prefetch={isMobileUA ? "viewport" : "intent"}
-      className="focus-invert group block py-4 border-b border-gray-200 dark:border-gray-700"
-    >
-      <div className="flex items-center gap-4">
+    <div className="py-4 border-b border-gray-200 dark:border-gray-700">
+      <Link
+        to={linkWithParams}
+        viewTransition={!isMobileUA}
+        prefetch={isMobileUA ? "viewport" : "intent"}
+        className="focus-invert group flex items-center gap-4"
+      >
         {/* Generated key image on LEFT side */}
         <GeneratedKeyImage
           seed={imageSeed ?? 0}
@@ -62,7 +64,22 @@ export default function EntryCard({ slug, title, date, emoji, imageSeed }: Entry
             })}
           </p>
         </div>
-      </div>
-    </Link>
+      </Link>
+
+      {tags && tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2 pl-24">
+          {tags.map((tag) => (
+            <Link
+              key={tag}
+              to={`/${language}${buildTagSearch(searchParams, { add: tag })}`}
+              viewTransition={!isMobileUA}
+              className="focus-invert text-xs font-serif text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            >
+              {`#${tag}`}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
