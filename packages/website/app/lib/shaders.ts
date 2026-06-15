@@ -159,6 +159,9 @@ vec3 compose(float pattern, float intensity){
 }
 vec2 dirHue(float deg){ return vec2(cos(radians(deg)), sin(radians(deg))); }
 float blob(vec2 q, vec2 c, float rad){ float d = length(q - c); return exp(-d * d / max(rad * rad, 1e-4)); }
+// A light disk with a defined (soft) edge — reads as a shaped light, and its
+// outline bends visibly when refracted through the glass.
+float lightDisk(vec2 q, vec2 c, float rad){ return smoothstep(rad, rad * 0.55, length(q - c)); }
 `;
 
 /** Fullscreen-triangle vertex shader (no attributes; uses gl_VertexID). */
@@ -228,26 +231,21 @@ vec3 facetNormal(vec2 p, float ar, out float edge, out vec2 cellId){
   float chamf = (al.x + al.y) * 0.72;
   float ed = max(max(al.x, al.y), chamf);
   float steps = max(2.0, floor(uCutSteps + 0.5));
-  float si = floor(ed * steps * 2.0);
   vec2 outDir;
   if (chamf >= max(al.x, al.y)) outDir = normalize(sign(lc) + 1e-4);
   else if (al.x > al.y) outDir = vec2(sign(lc.x), 0.0);
   else outDir = vec2(0.0, sign(lc.y));
-  // Curve each facet a touch (beveled, not perfectly flat) so refraction
-  // gradients across it instead of stepping uniformly.
-  vec2 bevel = lc * 0.6;
-  float tilt = (ed < 0.12) ? 0.25 : uFacetTilt * (0.6 + 0.4 * mod(si, 2.0));
-  vec3 N = normalize(vec3((outDir + bevel) * tilt, 1.0));
-  float ring = abs(fract(ed * steps * 2.0) - 0.5);
-  edge = smoothstep(fwidth(ed * steps * 2.0) * 1.5 + 0.02, 0.0, ring);
+  // Smooth concentric lensing tapered to ZERO at the cell edge, so the glass
+  // refracts smoothly with no hard seam/grid lines.
+  float ripple = sin(ed * steps * 6.2831);
+  float taper = smoothstep(0.5, 0.18, ed);
+  vec2 dirN = outDir * 0.6 + lc * 0.9;
+  vec3 N = normalize(vec3(dirN * uFacetTilt * ripple * taper, 1.0));
+  edge = 0.0;
   return N;
 }
 
-// A light disk with a defined (soft) edge, so its outline visibly bends when
-// refracted through the facets — a smooth Gaussian's edge is too soft to read.
-float lightDisk(vec2 q, vec2 c, float rad){
-  return smoothstep(rad, rad * 0.55, length(q - c));
-}
+// Light environment behind the glass: bulb + autonomous light2.
 float envLight(vec2 q, float ar, vec2 Lm, vec2 L2){
   float rad = max(uBulbRadius, 0.05);
   return lightDisk(q, Lm, rad) * uBulbInten + lightDisk(q, L2, rad * 0.8) * uBulbInten * 0.85;
@@ -328,24 +326,22 @@ void main(){
   float amt = 0.0;
   vec2 hv = vec2(0.0);
   float bright = 0.0;
-  for (int i = 0; i < 5; i++){
+  for (int i = 0; i < 7; i++){
     float fi = float(i);
     float hh = hash21(vec2(fi, 1.0));
-    vec2 c = vec2(0.5 + 0.42 * sin(uTime * (0.08 + 0.05 * hh) + fi * 1.7),
-                  0.5 + 0.36 * cos(uTime * (0.07 + 0.04 * hh) + fi * 2.3)) * vec2(ar, 1.0);
-    float rad = max(uBulbRadius, 0.05) * (0.6 + 0.6 * hh);
-    float b = blob(p, c, rad) * uBulbInten * (0.5 + 0.5 * hh);
-    float hue = uHue + (hh - 0.5) * 200.0 + uTime * 10.0 * hh;
+    float hh2 = hash21(vec2(fi, 5.0));
+    vec2 c = vec2(0.5 + 0.46 * sin(uTime * (0.06 + 0.05 * hh) + fi * 1.7),
+                  0.5 + 0.42 * cos(uTime * (0.05 + 0.04 * hh2) + fi * 2.3)) * vec2(ar, 1.0);
+    float rad = max(uBulbRadius, 0.05) * (0.22 + 0.4 * hh);
+    float d = length(p - c);
+    float disc = smoothstep(rad, rad * 0.7, d);
+    float rim = smoothstep(0.025, 0.0, abs(d - rad));
+    float b = (disc * 0.55 + rim * 0.9) * uBulbInten * (0.5 + 0.5 * hh2);
+    float hue = uHue + (hh - 0.5) * 220.0 + uTime * 8.0 * hh;
     amt += b;
     hv += dirHue(hue) * b;
-    bright = max(bright, b);
+    bright = max(bright, rim * uBulbInten);
   }
-  vec2 Lm = uLight * vec2(ar, 1.0);
-  float bc = blob(p, Lm, max(uBulbRadius, 0.05)) * uBulbInten;
-  amt += bc;
-  hv += dirHue(uHue) * bc;
-  bright = max(bright, bc);
-
   amt = clamp(amt, 0.0, 1.0);
   vec3 col = mix(baseBg(), accentAt(degrees(atan(hv.y, hv.x))), amt * budget());
   fragColor = vec4(col, clamp(bright, 0.0, 1.0));
@@ -360,16 +356,17 @@ void main(){
   float ar = uResolution.x / uResolution.y;
   vec2 p = uv * vec2(ar, 1.0);
 
-  vec2 L = uLight * vec2(ar, 1.0) + vec2(sin(uTime * 0.15), cos(uTime * 0.12)) * uAutoMove * 0.3;
-  float rad = max(uBulbRadius, 0.05) * 1.6;
-  float b = blob(p, L, rad) * uBulbInten;
-  float b2 = blob(p, L, rad * 2.2) * uBulbInten * 0.4;
-  float hue2 = uHue + 60.0 + uTime * 15.0;
-
-  float amt = clamp(b + b2, 0.0, 1.0);
-  vec2 hv = dirHue(uHue) * b + dirHue(hue2) * b2;
-  vec3 col = mix(baseBg(), accentAt(degrees(atan(hv.y, hv.x))), amt * budget());
-  fragColor = vec4(col, clamp(b, 0.0, 1.0));
+  float t = uTime * 0.05;
+  vec2 L = uLight * vec2(ar, 1.0) + vec2(sin(uTime * 0.13), cos(uTime * 0.11)) * uAutoMove * 0.3;
+  vec2 q = p * 1.4;
+  q += vec2(fbm(q + t), fbm(q + 9.0 - t)) * 0.6;
+  // Aurora-like curtains living inside the glow give spatial variation.
+  float bands = smoothstep(0.45, 0.95, 0.5 + 0.5 * sin(q.y * 3.0 + fbm(q * 1.5) * 4.0 + t * 2.0));
+  float gl = lightDisk(p, L, max(uBulbRadius, 0.05) * 1.4);
+  float amt = clamp(gl * (0.4 + 0.6 * bands), 0.0, 1.0);
+  float hue = uHue + fbm(q) * 120.0 + uTime * 12.0;
+  vec3 col = mix(baseBg(), accentAt(hue), amt * budget());
+  fragColor = vec4(col, clamp(gl, 0.0, 1.0));
 }
 `;
 
@@ -381,12 +378,12 @@ void main(){
   float ar = uResolution.x / uResolution.y;
   vec2 p = uv * vec2(ar, 1.0);
 
-  vec2 c1 = vec2(0.5 + 0.3 * sin(uTime * 0.16), 0.5 + 0.25 * cos(uTime * 0.16)) * vec2(ar, 1.0);
-  vec2 c2 = vec2(0.5 - 0.3 * sin(uTime * 0.13), 0.5 - 0.25 * cos(uTime * 0.13)) * vec2(ar, 1.0);
-  c1 = mix(c1, uLight * vec2(ar, 1.0), 0.4);
-  float rad = max(uBulbRadius, 0.05) * 1.3;
-  float b1 = blob(p, c1, rad) * uBulbInten;
-  float b2 = blob(p, c2, rad) * uBulbInten * 0.9;
+  vec2 c1 = vec2(0.3 * ar + 0.12 * sin(uTime * 0.16), 0.35 + 0.1 * cos(uTime * 0.16));
+  c1 = mix(c1, uLight * vec2(ar, 1.0), 0.45);
+  vec2 c2 = vec2(0.72 * ar + 0.12 * sin(uTime * 0.12 + 2.0), 0.7 + 0.1 * cos(uTime * 0.13 + 1.0));
+  float rad = max(uBulbRadius, 0.05) * 1.1;
+  float b1 = lightDisk(p, c1, rad);
+  float b2 = lightDisk(p, c2, rad * 0.9);
   float hue2 = uHue + 150.0 + uTime * 8.0;
 
   float amt = clamp(b1 + b2, 0.0, 1.0);
@@ -405,18 +402,18 @@ void main(){
   vec2 p = uv * vec2(ar, 1.0);
 
   float t = uTime * 0.05;
-  vec2 q = p * 1.5;
-  q += vec2(fbm(q + t), fbm(q + 5.0 - t)) * 0.6;
+  vec2 q = p * 1.6;
+  q += vec2(fbm(q + t), fbm(q + 5.0 - t)) * 0.8;
   float n = fbm(q + vec2(0.0, t * 2.0));
-  float band = 0.5 + 0.5 * sin(n * 6.2831 + t * 3.0);
+  float band = smoothstep(0.4, 0.72, 0.5 + 0.5 * sin(n * 6.2831 + t * 3.0));
 
   vec2 L = uLight * vec2(ar, 1.0);
-  float gl = blob(p, L, max(uBulbRadius, 0.05) * 1.4) * uBulbInten * 0.8;
+  float gl = lightDisk(p, L, max(uBulbRadius, 0.05) * 1.2);
 
-  float amt = clamp(band * 0.5 + gl, 0.0, 1.0);
-  float hue = uHue + n * 120.0 + uTime * 10.0;
+  float amt = clamp(band * 0.6 + gl * 0.7, 0.0, 1.0);
+  float hue = uHue + n * 140.0 + uTime * 10.0;
   vec3 col = mix(baseBg(), accentAt(hue), amt * budget());
-  fragColor = vec4(col, clamp(gl + band * 0.3, 0.0, 1.0));
+  fragColor = vec4(col, clamp(gl + band * 0.4, 0.0, 1.0));
 }
 `;
 
