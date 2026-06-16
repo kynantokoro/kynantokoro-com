@@ -1,4 +1,4 @@
-import { parseTagLayout, type TagCluster, type TagLayout } from './tagLayout';
+import { byCodePoint, parseTagLayout, type TagCluster, type TagLayout } from './tagLayout';
 
 /**
  * Deterministic pieces of the tag-layout generator, split out from the CI
@@ -72,15 +72,19 @@ export function ensureCoverage(tags: string[], clusters: TagCluster[]): TagClust
     if (ts.length) cleaned.push({ ...c, tags: ts });
   }
   const missing = tags.filter((t) => !seen.has(t));
-  if (missing.length) cleaned.push({ id: 'other', name: { en: 'Other', ja: 'その他' }, tags: missing });
+  if (missing.length) {
+    const other = cleaned.find((c) => c.id === 'other');
+    if (other) other.tags.push(...missing); // merge into a model-provided `other` rather than duplicate it
+    else cleaned.push({ id: 'other', name: { en: 'Other', ja: 'その他' }, tags: missing });
+  }
   return cleaned;
 }
 
 /** Canonical ordering so unchanged layouts serialize identically (tidy diffs). */
 export function sortClusters(clusters: TagCluster[]): TagCluster[] {
   return clusters
-    .map((c) => ({ ...c, tags: [...c.tags].sort((a, b) => a.localeCompare(b)) }))
-    .sort((a, b) => a.id.localeCompare(b.id));
+    .map((c) => ({ ...c, tags: [...c.tags].sort(byCodePoint) }))
+    .sort((a, b) => byCodePoint(a.id, b.id));
 }
 
 /**
@@ -98,10 +102,12 @@ export function reconcileClusters(
   const known = new Set(existing.flatMap((c) => c.tags));
   const newTags = currentTags.filter((t) => !known.has(t));
 
-  // Preserve existing clusters verbatim, minus any tags that no longer exist.
+  // Preserve existing clusters verbatim, minus tags that no longer exist; drop any that empty out
+  // so a stale id/name can't be revived by a new tag the model happens to place under that id.
   const byId = new Map<string, TagCluster>();
   for (const c of existing) {
-    byId.set(c.id, { ...c, tags: c.tags.filter((t) => current.has(t)) });
+    const tags = c.tags.filter((t) => current.has(t));
+    if (tags.length) byId.set(c.id, { ...c, tags });
   }
 
   // Place each new tag wherever the model put it (existing cluster or a new one).

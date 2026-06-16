@@ -39,13 +39,16 @@ function fnv1aHex(str: string): string {
   return fnv1aInt(str).toString(16).padStart(8, '0');
 }
 
+/** Locale-independent code-point ordering — stable across runtimes/ICU versions. */
+export const byCodePoint = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
 /**
  * Hash of the *set* of tags (order/duplicate independent) plus its size.
  * Used by the CI generator to decide whether the semantic layout must be
  * regenerated. Deterministic across Node and the Worker runtime.
  */
 export function computeTagSetHash(tags: string[]): string {
-  const uniq = Array.from(new Set(tags)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const uniq = Array.from(new Set(tags)).sort(byCodePoint);
   const canonical = uniq.join('\n') + '|' + uniq.length;
   return fnv1aHex(canonical);
 }

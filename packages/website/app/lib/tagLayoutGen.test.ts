@@ -90,6 +90,13 @@ describe('ensureCoverage', () => {
     expect(out.find((c) => c.id === 'other')).toBeUndefined();
     expect(out).toHaveLength(1);
   });
+
+  it('merges swept-up tags into a model-provided `other` instead of duplicating it', () => {
+    const out = ensureCoverage(tags, [{ id: 'other', name: { en: 'Other', ja: 'その他' }, tags: ['a'] }]);
+    const others = out.filter((c) => c.id === 'other');
+    expect(others).toHaveLength(1);
+    expect(others[0].tags).toEqual(['a', 'b', 'c']);
+  });
 });
 
 describe('sortClusters', () => {
@@ -101,6 +108,11 @@ describe('sortClusters', () => {
     expect(out.map((c) => c.id)).toEqual(['a', 'b']);
     expect(out[0].tags).toEqual(['c', 'm']);
     expect(out[1].tags).toEqual(['a', 'z']);
+  });
+
+  it('orders by code point, not locale (matches the hash convention)', () => {
+    const out = sortClusters([{ id: 'x', tags: ['a', 'B', 'c'] }]);
+    expect(out[0].tags).toEqual(['B', 'a', 'c']); // 'B'(66) < 'a'(97) < 'c'(99)
   });
 });
 
@@ -140,6 +152,14 @@ describe('reconcileClusters', () => {
     expect(out.find((c) => c.id === 'web')?.tags).toEqual(['http']);
     expect(out.find((c) => c.id === 'lang')).toBeUndefined(); // emptied → dropped
     expect(out.find((c) => c.id === 'other')?.tags).toEqual(['newbie']);
+  });
+
+  it('does not revive an emptied cluster with its stale name when the model reuses its id', () => {
+    const model = [{ id: 'lang', name: { en: 'Systems', ja: 'システム' }, tags: ['go'] }];
+    const out = reconcileClusters(['http', 'css', 'go'], model, existing); // 'rust' removed → 'lang' empties
+    const lang = out.find((c) => c.id === 'lang');
+    expect(lang?.tags).toEqual(['go']);
+    expect(lang?.name).toEqual({ en: 'Systems', ja: 'システム' }); // fresh model name, not stale 'Languages'
   });
 });
 
