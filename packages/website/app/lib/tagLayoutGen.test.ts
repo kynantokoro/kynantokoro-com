@@ -4,7 +4,10 @@ import {
   extractJson,
   clustersFromModelText,
   ensureCoverage,
+  sortClusters,
+  reconcileClusters,
   layoutFromModelText,
+  layoutFromExisting,
 } from './tagLayoutGen';
 
 describe('buildClusterPrompt', () => {
@@ -13,6 +16,15 @@ describe('buildClusterPrompt', () => {
     expect(p).toContain('["rust","gamedev"]');
     expect(p).toContain('"clusters"');
     expect(p).toContain('Output JSON only');
+  });
+
+  it('builds an incremental prompt that anchors on existing clusters', () => {
+    const existing = [{ id: 'web', name: { en: 'Web', ja: 'ウェブ' }, tags: ['http'] }];
+    const p = buildClusterPrompt(['http', 'rust'], existing);
+    expect(p).toContain('Existing clusters');
+    expect(p).toContain('"http"'); // existing layout serialized
+    expect(p).toContain('["rust"]'); // only the new tag is to be placed
+    expect(p).toContain('unchanged');
   });
 });
 
@@ -80,6 +92,57 @@ describe('ensureCoverage', () => {
   });
 });
 
+describe('sortClusters', () => {
+  it('sorts clusters by id and tags within each cluster', () => {
+    const out = sortClusters([
+      { id: 'b', tags: ['z', 'a'] },
+      { id: 'a', tags: ['m', 'c'] },
+    ]);
+    expect(out.map((c) => c.id)).toEqual(['a', 'b']);
+    expect(out[0].tags).toEqual(['c', 'm']);
+    expect(out[1].tags).toEqual(['a', 'z']);
+  });
+});
+
+describe('reconcileClusters', () => {
+  const existing = [
+    { id: 'web', name: { en: 'Web', ja: 'ウェブ' }, tags: ['http', 'css'] },
+    { id: 'lang', name: { en: 'Languages', ja: '言語' }, tags: ['rust'] },
+  ];
+
+  it('keeps existing tags put even when the model moved or renamed them', () => {
+    const model = [
+      { id: 'web-renamed', name: { en: 'X', ja: 'X' }, tags: ['css'] },
+      { id: 'lang', name: { en: 'Different', ja: '別' }, tags: ['rust', 'http'] },
+    ];
+    const out = reconcileClusters(['http', 'css', 'rust'], model, existing);
+    expect(out.find((c) => c.id === 'web')?.tags.slice().sort()).toEqual(['css', 'http']);
+    expect(out.find((c) => c.id === 'web')?.name).toEqual({ en: 'Web', ja: 'ウェブ' });
+    expect(out.find((c) => c.id === 'lang')?.tags).toEqual(['rust']);
+  });
+
+  it('places a new tag into the existing cluster the model chose', () => {
+    const model = [{ id: 'web', tags: ['ts'] }];
+    const out = reconcileClusters(['http', 'css', 'rust', 'ts'], model, existing);
+    expect(out.find((c) => c.id === 'web')?.tags.slice().sort()).toEqual(['css', 'http', 'ts']);
+  });
+
+  it('adopts a model-proposed new cluster for a new tag', () => {
+    const model = [{ id: 'audio', name: { en: 'Audio', ja: '音' }, tags: ['daw'] }];
+    const out = reconcileClusters(['http', 'css', 'rust', 'daw'], model, existing);
+    const audio = out.find((c) => c.id === 'audio');
+    expect(audio?.tags).toEqual(['daw']);
+    expect(audio?.name).toEqual({ en: 'Audio', ja: '音' });
+  });
+
+  it('drops removed tags and sweeps unplaced new tags into other', () => {
+    const out = reconcileClusters(['http', 'newbie'], [], existing);
+    expect(out.find((c) => c.id === 'web')?.tags).toEqual(['http']);
+    expect(out.find((c) => c.id === 'lang')).toBeUndefined(); // emptied → dropped
+    expect(out.find((c) => c.id === 'other')?.tags).toEqual(['newbie']);
+  });
+});
+
 describe('layoutFromModelText', () => {
   it('builds a fully-covering, validated layout from raw model text', () => {
     const tags = ['rust', 'gamedev', 'music'];
@@ -93,10 +156,33 @@ describe('layoutFromModelText', () => {
     expect(layout.hash).toBe('abc123');
     expect(layout.model).toBe('test-model');
     expect(layout.generatedAt).toBe('2026-01-01T00:00:00.000Z');
-    // every input tag is covered exactly once
     const covered = layout.clusters.flatMap((c) => c.tags).sort();
     expect(covered).toEqual(['gamedev', 'music', 'rust']);
-    // the un-clustered 'music' was swept into 'other'
     expect(layout.clusters.find((c) => c.id === 'other')?.tags).toEqual(['music']);
+  });
+
+  it('anchors on existing clusters, only adding new tags', () => {
+    const existing = [{ id: 'web', name: { en: 'Web', ja: 'ウェブ' }, tags: ['http'] }];
+    const text = '{"clusters":[{"id":"web","name":{"en":"Web","ja":"ウェブ"},"tags":["http","ts"]}]}';
+    const layout = layoutFromModelText('blah ' + text, ['http', 'ts'], {
+      model: 'm',
+      hash: 'h',
+      generatedAt: 't',
+      existing,
+    });
+    expect(layout.clusters.find((c) => c.id === 'web')?.tags).toEqual(['http', 'ts']);
+  });
+});
+
+describe('layoutFromExisting', () => {
+  it('prunes removed tags without a model call and sorts', () => {
+    const existing = [
+      { id: 'web', name: { en: 'Web', ja: 'ウェブ' }, tags: ['http', 'css'] },
+      { id: 'lang', name: { en: 'Lang', ja: '言語' }, tags: ['rust'] },
+    ];
+    const layout = layoutFromExisting(['http'], { model: 'manual', hash: 'h', existing, generatedAt: 't' });
+    expect(layout.clusters.map((c) => c.id)).toEqual(['web']); // lang emptied → dropped
+    expect(layout.clusters[0].tags).toEqual(['http']);
+    expect(layout.model).toBe('manual');
   });
 });
