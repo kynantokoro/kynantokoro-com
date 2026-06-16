@@ -24,24 +24,14 @@ export interface ShaderMeta {
   ja: string;
 }
 
-export interface SimpleShaderDef extends ShaderMeta {
-  kind: "simple";
-  frag: string;
-}
-
-export interface FeedbackShaderDef extends ShaderMeta {
-  kind: "feedback";
-  simFrag: string;
-  showFrag: string;
-}
-
 export interface PostfxShaderDef extends ShaderMeta {
   kind: "postfx";
   sceneFrag: string;
   postFrag: string;
 }
 
-export type ShaderDef = SimpleShaderDef | FeedbackShaderDef | PostfxShaderDef;
+/** Only the two-pass "aura" wallpaper exists, so a shader def is always postfx. */
+export type ShaderDef = PostfxShaderDef;
 
 /** Live-tunable look parameters. `uniform` is the GLSL uniform name. */
 export interface ParamDef {
@@ -54,11 +44,9 @@ export interface ParamDef {
   value: number;
 }
 
-// TODO(review): the wallpaper picker + tuning panel were removed, so each
-// ParamDef's min/max/step/label are now vestigial — only `value` (fed into
-// DEFAULT_PARAMS) and `uniform` are consumed at runtime. Likewise OFF_LABEL /
-// isShaderId / SHADER_IDS below are leftovers from the picker. Trim once the
-// look parameters are final.
+// Look parameters fed to the shader as uniforms. Only `value` (via
+// DEFAULT_PARAMS) and `uniform` are read at runtime; min/max/step/label
+// document the intended ranges.
 export const PARAM_DEFS: ParamDef[] = [
   { key: "bulbRadius", uniform: "uBulbRadius", label: "Light size", min: 0.1, max: 1.2, step: 0.01, value: 0.5 },
   { key: "bulbInten", uniform: "uBulbInten", label: "Light intensity", min: 0, max: 1.5, step: 0.01, value: 1.2 },
@@ -215,24 +203,14 @@ void main(){
 }
 `;
 
-/** Selectable wallpapers (excludes the "off" / solid option). */
+/** The wallpaper(s) the renderer can draw. */
 export const SHADERS: ShaderDef[] = [
   { id: "aura", kind: "postfx", en: "Aura", ja: "オーラ", sceneFrag: auraScene, postFrag: POST },
 ];
 
-/** Every id including the solid "off" option, in picker order. */
-export const SHADER_IDS: ShaderId[] = ["off", ...SHADERS.map((s) => s.id)];
-
-/** Default wallpaper used when nothing is stored yet. */
+/** Default (and currently only) wallpaper. */
 export const DEFAULT_SHADER: ShaderId = "aura";
-
-/** Localised label for the "off" (solid background) option. */
-export const OFF_LABEL = { en: "Off", ja: "オフ" } as const;
 
 export function getShaderDef(id: ShaderId): ShaderDef | undefined {
   return SHADERS.find((s) => s.id === id);
-}
-
-export function isShaderId(value: string | null): value is ShaderId {
-  return value != null && (SHADER_IDS as string[]).includes(value);
 }

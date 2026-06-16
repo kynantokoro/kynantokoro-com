@@ -2,41 +2,28 @@ import { useEffect, useRef } from "react";
 import { useShader } from "../contexts/shader-context";
 import { DEFAULT_PARAMS, DEFAULT_SHADER, getShaderDef, PARAM_DEFS, VERTEX_SRC, type ShaderDef } from "../lib/shaders";
 
-// TODO(review): only the "aura" postfx shader is registered, so the "simple"
-// (ripples) and "feedback" (ping-pong sim) render paths in the loop below — plus
-// the Compiled{Simple,Feedback} types, the ripple/click state and the
-// uMouse/uLight/uMouseVel/uActive uniforms — are currently unreachable dead
-// code. Consider pruning to the postfx path only (~150 lines) once the look is
-// locked in. MAX_RIPPLES / RIPPLE_LIFE / SIM_* belong to those dead paths.
-const MAX_RIPPLES = 8;
-const RIPPLE_LIFE = 2.6; // seconds
 const DPR_CAP = 1.25; // background is soft/grainy — a low cap saves a lot of GPU
 const FPS_CAP = 32; // the wallpaper moves slowly; 32fps halves GPU vs 60
 const FRAME_MS = 1000 / FPS_CAP;
 const INTRO_MS = 2000; // lively intro at full speed
 const BRAKE_MS = 3000; // then ease the time-rate to zero over this long (smooth stop)
-const SIM_SCALE = 0.5; // feedback simulation runs at half the canvas resolution
-const SIM_MAX_DIM = 480; // ...capped so large screens stay cheap
+
+// Base background colours (mirror shaders.ts baseBg) — used to clear the canvas
+// before the first draw so an opaque (alpha:false) context shows the page colour
+// rather than black for a frame. [light, dark].
+const BASE_BG: [number, number, number][] = [
+  [0.961, 0.965, 0.973],
+  [0.067, 0.094, 0.153],
+];
 
 type Prog = {
   program: WebGLProgram;
   u: (name: string) => WebGLUniformLocation | null;
 };
 
-type CompiledSimple = { kind: "simple"; main: Prog };
-type CompiledFeedback = {
-  kind: "feedback";
-  sim: Prog;
-  show: Prog;
-  texs: WebGLTexture[];
-  fbos: WebGLFramebuffer[];
-  w: number;
-  h: number;
-  cur: number;
-  ready: boolean;
-};
-type CompiledPostfx = {
-  kind: "postfx";
+// The single "aura" wallpaper renders in two passes: a scene pass into an
+// offscreen full-res texture, then a post pass (flare + paper) to the screen.
+type Compiled = {
   scene: Prog;
   post: Prog;
   tex: WebGLTexture | null;
@@ -45,16 +32,17 @@ type CompiledPostfx = {
   h: number;
   ready: boolean;
 };
-type Compiled = CompiledSimple | CompiledFeedback | CompiledPostfx;
 
 /**
- * Persistent interactive shader wallpaper.
+ * Persistent shader wallpaper.
  *
- * Rendered once inside the root layout so its WebGL context, animation clock
- * and any feedback-shader simulation textures survive client-side
- * navigation — the background never resets between pages. The canvas is fixed
- * behind all content with `pointer-events: none`; pointer interaction is read
- * from window-level listeners so links and scrolling keep working.
+ * Rendered once inside the root layout so its WebGL context and animation clock
+ * survive client-side navigation — the background never resets between pages.
+ * The canvas is fixed behind all content with `pointer-events: none`.
+ *
+ * Non-interactive and self-limiting: it plays a short intro on load /
+ * navigation, then freezes the last frame and stops drawing entirely (≈0 GPU
+ * while reading). It recovers automatically from WebGL context loss.
  */
 export default function ShaderBackground() {
   const { accentHue, revealId } = useShader();
@@ -87,14 +75,6 @@ export default function ShaderBackground() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // TODO(review): no WebGL context-loss recovery. Add a webglcontextlost
-    // listener (preventDefault) + webglcontextrestored (re-init programs/FBOs)
-    // so this always-on background self-heals after a GPU/context reset instead
-    // of staying on the CSS fallback colour until a full reload.
-    // (e2e: force loss/restore via the WEBGL_lose_context extension.)
-    // TODO(review): alpha:false makes the canvas opaque before the first draw —
-    // verify there's no 1-frame black flash in light mode (the .shader-bg CSS
-    // fallback colour sits behind the canvas).
     const gl = canvas.getContext("webgl2", {
       antialias: false,
       alpha: false,
@@ -109,11 +89,10 @@ export default function ShaderBackground() {
     }
     const g = gl; // non-null alias for closures
 
-    const vs = compileShader(g, g.VERTEX_SHADER, VERTEX_SRC);
-    if (!vs) return;
-
-    const vao = g.createVertexArray();
-    g.bindVertexArray(vao);
+    // GL resources that are invalidated by context loss and rebuilt on restore.
+    let vs: WebGLShader | null = null;
+    let vao: WebGLVertexArrayObject | null = null;
+    const compiledMap = new Map<string, Compiled>();
 
     function makeProg(frag: string): Prog | null {
       const fs = compileShader(g, g.FRAGMENT_SHADER, frag);
@@ -139,39 +118,24 @@ export default function ShaderBackground() {
       return { program, u };
     }
 
-    const compiledMap = new Map<string, Compiled>();
+    // (Re)create the vertex shader + VAO. Programs/FBOs are rebuilt lazily by
+    // getCompiled/initPostfx. Returns false if the vertex shader won't compile.
+    function buildGL(): boolean {
+      vs = compileShader(g, g.VERTEX_SHADER, VERTEX_SRC);
+      if (!vs) return false;
+      vao = g.createVertexArray();
+      g.bindVertexArray(vao);
+      return true;
+    }
+    if (!buildGL()) return;
+
     function getCompiled(def: ShaderDef): Compiled | null {
       const existing = compiledMap.get(def.id);
       if (existing) return existing;
-      if (def.kind === "simple") {
-        const main = makeProg(def.frag);
-        if (!main) return null;
-        const c: Compiled = { kind: "simple", main };
-        compiledMap.set(def.id, c);
-        return c;
-      }
-      if (def.kind === "postfx") {
-        const scene = makeProg(def.sceneFrag);
-        const post = makeProg(def.postFrag);
-        if (!scene || !post) return null;
-        const c: Compiled = { kind: "postfx", scene, post, tex: null, fbo: null, w: 0, h: 0, ready: false };
-        compiledMap.set(def.id, c);
-        return c;
-      }
-      const sim = makeProg(def.simFrag);
-      const show = makeProg(def.showFrag);
-      if (!sim || !show) return null;
-      const c: Compiled = {
-        kind: "feedback",
-        sim,
-        show,
-        texs: [],
-        fbos: [],
-        w: 0,
-        h: 0,
-        cur: 0,
-        ready: false,
-      };
+      const scene = makeProg(def.sceneFrag);
+      const post = makeProg(def.postFrag);
+      if (!scene || !post) return null;
+      const c: Compiled = { scene, post, tex: null, fbo: null, w: 0, h: 0, ready: false };
       compiledMap.set(def.id, c);
       return c;
     }
@@ -188,50 +152,12 @@ export default function ShaderBackground() {
       ch = h;
       canvas!.width = w;
       canvas!.height = h;
-      // Offscreen buffers depend on canvas size — flag them for reallocation.
-      for (const c of compiledMap.values()) {
-        if (c.kind === "feedback" || c.kind === "postfx") c.ready = false;
-      }
+      // Offscreen buffer depends on canvas size — flag it for reallocation.
+      for (const c of compiledMap.values()) c.ready = false;
       return true;
     }
 
-    function initFeedback(c: CompiledFeedback) {
-      let w = Math.max(2, Math.floor(cw * SIM_SCALE));
-      let h = Math.max(2, Math.floor(ch * SIM_SCALE));
-      const m = Math.max(w, h);
-      if (m > SIM_MAX_DIM) {
-        const k = SIM_MAX_DIM / m;
-        w = Math.max(2, Math.floor(w * k));
-        h = Math.max(2, Math.floor(h * k));
-      }
-      c.texs.forEach((t) => g.deleteTexture(t));
-      c.fbos.forEach((f) => g.deleteFramebuffer(f));
-      c.texs = [];
-      c.fbos = [];
-      for (let i = 0; i < 2; i++) {
-        const tex = g.createTexture()!;
-        g.bindTexture(g.TEXTURE_2D, tex);
-        g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, w, h, 0, g.RGBA, g.UNSIGNED_BYTE, null);
-        g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR);
-        g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR);
-        g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE);
-        g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE);
-        const fb = g.createFramebuffer()!;
-        g.bindFramebuffer(g.FRAMEBUFFER, fb);
-        g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, tex, 0);
-        g.clearColor(0, 0, 0, 1);
-        g.clear(g.COLOR_BUFFER_BIT);
-        c.texs.push(tex);
-        c.fbos.push(fb);
-      }
-      g.bindFramebuffer(g.FRAMEBUFFER, null);
-      c.w = w;
-      c.h = h;
-      c.cur = 0;
-      c.ready = true;
-    }
-
-    function initPostfx(c: CompiledPostfx) {
+    function initPostfx(c: Compiled) {
       if (c.tex) g.deleteTexture(c.tex);
       if (c.fbo) g.deleteFramebuffer(c.fbo);
       const tex = g.createTexture()!;
@@ -252,27 +178,24 @@ export default function ShaderBackground() {
       c.ready = true;
     }
 
-    // ---- pointer / theme / motion state ------------------------------------
-    // Non-interactive: the light is fixed at the centre and the shader adds its
-    // own autonomous drift. (These stay constant; kept for setCommon and the
-    // unused simple/feedback code paths.)
-    const smx = 0.5;
-    const smy = 0.5;
-    const lightX = 0.5;
-    const lightY = 0.5;
-    const vx = 0;
-    const vy = 0;
-    const activity = 0;
-    const ripples: { x: number; y: number; t: number }[] = [];
-    const click = { x: 0.5, y: 0.5, t: -100 };
+    // Paint the theme base colour straight to the screen so there's no black
+    // flash before (or after a context loss, until) the first scene draw.
+    function clearToBase() {
+      const [r, gr, b] = BASE_BG[theme];
+      g.bindFramebuffer(g.FRAMEBUFFER, null);
+      g.clearColor(r, gr, b, 1);
+      g.clear(g.COLOR_BUFFER_BIT);
+    }
 
+    // ---- theme / motion / visibility state ---------------------------------
     let theme = document.documentElement.classList.contains("dark") ? 1 : 0;
-    // TODO(review): fires on ANY documentElement class change (shader-active,
-    // header-hydrating, data-theme…), not just dark toggles, so it can re-kick
-    // the intro on unrelated mutations — including the shader-active class this
-    // component adds on mount. Guard on an actual change of the dark boolean.
+    // Re-kick the intro only when the dark state actually flips. The
+    // documentElement also gets unrelated class mutations (shader-active,
+    // data-theme, hydration markers) that must NOT re-trigger the animation.
     const themeObserver = new MutationObserver(() => {
-      theme = document.documentElement.classList.contains("dark") ? 1 : 0;
+      const next = document.documentElement.classList.contains("dark") ? 1 : 0;
+      if (next === theme) return;
+      theme = next;
       kickRef.current?.();
     });
     themeObserver.observe(document.documentElement, {
@@ -289,11 +212,9 @@ export default function ShaderBackground() {
     reducedQuery.addEventListener("change", onReducedChange);
 
     let visible = !document.hidden;
+    let contextLost = false;
 
-    // ---- uniform helpers ---------------------------------------------------
-    const ripPos = new Float32Array(MAX_RIPPLES * 2);
-    const ripAge = new Float32Array(MAX_RIPPLES);
-
+    // ---- uniforms ----------------------------------------------------------
     function setCommon(u: Prog["u"], resW: number, resH: number) {
       const r = u("uResolution");
       if (r) g.uniform2f(r, resW, resH);
@@ -303,20 +224,10 @@ export default function ShaderBackground() {
       if (ip) g.uniform1f(ip, bloomThisReveal ? introProgress : 1.0);
       const rs = u("uRest");
       if (rs) g.uniform1f(rs, restProgress);
-      const m = u("uMouse");
-      if (m) g.uniform2f(m, smx, smy);
-      const lt = u("uLight");
-      if (lt) g.uniform2f(lt, lightX, lightY);
-      const mv = u("uMouseVel");
-      if (mv) g.uniform2f(mv, vx, vy);
       const th = u("uTheme");
       if (th) g.uniform1f(th, theme);
       const h = u("uHue");
       if (h) g.uniform1f(h, currentHue);
-      const a = u("uActive");
-      if (a) g.uniform1f(a, Math.min(1, activity));
-      const mo = u("uMotion");
-      if (mo) g.uniform1f(mo, motion);
       // Fixed look parameters (defaults baked in; see PARAM_DEFS).
       for (const dParam of PARAM_DEFS) {
         const loc = u(dParam.uniform);
@@ -324,7 +235,7 @@ export default function ShaderBackground() {
       }
     }
 
-    // ---- render loop -------------------------------------------------------
+    // ---- render-loop state -------------------------------------------------
     let timeSec = Math.random() * 1000; // random phase so each landing differs
     let lastTs = performance.now();
     let rafId = 0;
@@ -367,7 +278,7 @@ export default function ShaderBackground() {
     };
 
     const loop = (ts: number) => {
-      if (!visible) {
+      if (!visible || contextLost) {
         rafId = 0;
         return;
       }
@@ -418,85 +329,27 @@ export default function ShaderBackground() {
         rafId = 0;
         return;
       }
+      if (!compiled.ready || !compiled.tex || !compiled.fbo) initPostfx(compiled);
 
-      if (compiled.kind === "simple") {
-        // Prune expired ripples and pack the most recent into the uniforms.
-        for (let i = ripples.length - 1; i >= 0; i--) {
-          if (timeSec - ripples[i].t > RIPPLE_LIFE) ripples.splice(i, 1);
-        }
-        for (let i = 0; i < MAX_RIPPLES; i++) {
-          ripAge[i] = -1;
-          ripPos[i * 2] = 0;
-          ripPos[i * 2 + 1] = 0;
-        }
-        const n = Math.min(ripples.length, MAX_RIPPLES);
-        for (let i = 0; i < n; i++) {
-          const r = ripples[ripples.length - 1 - i];
-          ripPos[i * 2] = r.x;
-          ripPos[i * 2 + 1] = r.y;
-          ripAge[i] = timeSec - r.t;
-        }
-
-        g.bindFramebuffer(g.FRAMEBUFFER, null);
-        g.viewport(0, 0, cw, ch);
-        g.useProgram(compiled.main.program);
-        setCommon(compiled.main.u, cw, ch);
-        const rp = compiled.main.u("uRipplePos[0]");
-        if (rp) g.uniform2fv(rp, ripPos);
-        const ra = compiled.main.u("uRippleAge[0]");
-        if (ra) g.uniform1fv(ra, ripAge);
-        g.drawArrays(g.TRIANGLES, 0, 3);
-      } else if (compiled.kind === "postfx") {
-        if (!compiled.ready || !compiled.tex || !compiled.fbo) initPostfx(compiled);
-        // Scene pass -> offscreen full-resolution texture.
-        g.bindFramebuffer(g.FRAMEBUFFER, compiled.fbo);
-        g.viewport(0, 0, cw, ch);
-        g.useProgram(compiled.scene.program);
-        setCommon(compiled.scene.u, cw, ch);
-        g.drawArrays(g.TRIANGLES, 0, 3);
-        // Post pass -> screen, reading the scene texture for flare + paper.
-        g.bindFramebuffer(g.FRAMEBUFFER, null);
-        g.viewport(0, 0, cw, ch);
-        g.useProgram(compiled.post.program);
-        g.activeTexture(g.TEXTURE0);
-        g.bindTexture(g.TEXTURE_2D, compiled.tex);
-        const sc = compiled.post.u("uScene");
-        if (sc) g.uniform1i(sc, 0);
-        setCommon(compiled.post.u, cw, ch);
-        g.drawArrays(g.TRIANGLES, 0, 3);
-      } else {
-        if (!compiled.ready) initFeedback(compiled);
-
-        // Simulation pass: read current state, write the next into the spare.
-        const read = compiled.texs[compiled.cur];
-        const writeFb = compiled.fbos[1 - compiled.cur];
-        g.bindFramebuffer(g.FRAMEBUFFER, writeFb);
-        g.viewport(0, 0, compiled.w, compiled.h);
-        g.useProgram(compiled.sim.program);
-        g.activeTexture(g.TEXTURE0);
-        g.bindTexture(g.TEXTURE_2D, read);
-        const sp = compiled.sim.u("uPrev");
-        if (sp) g.uniform1i(sp, 0);
-        setCommon(compiled.sim.u, compiled.w, compiled.h);
-        const cu = compiled.sim.u("uClick");
-        if (cu) g.uniform3f(cu, click.x, click.y, timeSec - click.t);
-        g.drawArrays(g.TRIANGLES, 0, 3);
-        compiled.cur = 1 - compiled.cur;
-
-        // Display pass: theme the freshly written state onto the screen.
-        g.bindFramebuffer(g.FRAMEBUFFER, null);
-        g.viewport(0, 0, cw, ch);
-        g.useProgram(compiled.show.program);
-        g.activeTexture(g.TEXTURE0);
-        g.bindTexture(g.TEXTURE_2D, compiled.texs[compiled.cur]);
-        const wp = compiled.show.u("uPrev");
-        if (wp) g.uniform1i(wp, 0);
-        setCommon(compiled.show.u, cw, ch);
-        g.drawArrays(g.TRIANGLES, 0, 3);
-      }
+      // Scene pass -> offscreen full-resolution texture.
+      g.bindFramebuffer(g.FRAMEBUFFER, compiled.fbo);
+      g.viewport(0, 0, cw, ch);
+      g.useProgram(compiled.scene.program);
+      setCommon(compiled.scene.u, cw, ch);
+      g.drawArrays(g.TRIANGLES, 0, 3);
+      // Post pass -> screen, reading the scene texture for flare + paper.
+      g.bindFramebuffer(g.FRAMEBUFFER, null);
+      g.viewport(0, 0, cw, ch);
+      g.useProgram(compiled.post.program);
+      g.activeTexture(g.TEXTURE0);
+      g.bindTexture(g.TEXTURE_2D, compiled.tex);
+      const sc = compiled.post.u("uScene");
+      if (sc) g.uniform1i(sc, 0);
+      setCommon(compiled.post.u, cw, ch);
+      g.drawArrays(g.TRIANGLES, 0, 3);
 
       // Play a short intro, then freeze the last frame and stop drawing
-      // entirely (≈0 GPU while reading). Re-kicked on theme/resize/re-select;
+      // entirely (≈0 GPU while reading). Re-kicked on theme/resize/restore;
       // reduced-motion shows a single static frame immediately.
       if (reduced || ts - introStart >= INTRO_MS + BRAKE_MS) {
         frozen = true;
@@ -511,7 +364,7 @@ export default function ShaderBackground() {
       frozen = false;
       introStart = performance.now();
       lastTs = performance.now() - FRAME_MS;
-      if (!rafId && visible) {
+      if (!rafId && visible && !contextLost) {
         rafId = requestAnimationFrame(loop);
       }
     };
@@ -534,6 +387,30 @@ export default function ShaderBackground() {
     };
     revealRef.current = doReveal;
 
+    // ---- context loss / restore --------------------------------------------
+    // The background is always mounted, so a GPU/context reset would otherwise
+    // strand it on the CSS fallback colour until a full reload. Recover in place.
+    const onContextLost = (e: Event) => {
+      e.preventDefault(); // required for 'webglcontextrestored' to fire
+      contextLost = true;
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
+    };
+    const onContextRestored = () => {
+      // Every GL resource was invalidated: rebuild the shader/VAO, drop cached
+      // programs/FBOs (recompiled lazily), force a resize, then replay.
+      compiledMap.clear();
+      cw = 0;
+      ch = 0;
+      if (!buildGL()) return;
+      contextLost = false;
+      resize();
+      clearToBase();
+      kick();
+    };
+    canvas.addEventListener("webglcontextlost", onContextLost);
+    canvas.addEventListener("webglcontextrestored", onContextRestored);
+
     const onVisibility = () => {
       visible = !document.hidden;
       // Resume an interrupted intro; if already frozen, keep the held frame.
@@ -549,6 +426,7 @@ export default function ShaderBackground() {
     window.addEventListener("resize", onResize, { passive: true });
 
     resize();
+    clearToBase(); // paint base colour now so there's no first-frame black flash
     kick();
 
     return () => {
@@ -556,30 +434,23 @@ export default function ShaderBackground() {
       rafId = 0;
       kickRef.current = null;
       revealRef.current = null;
+      canvas.removeEventListener("webglcontextlost", onContextLost);
+      canvas.removeEventListener("webglcontextrestored", onContextRestored);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisibility);
       reducedQuery.removeEventListener("change", onReducedChange);
       themeObserver.disconnect();
       for (const c of compiledMap.values()) {
-        if (c.kind === "simple") {
-          g.deleteProgram(c.main.program);
-        } else if (c.kind === "postfx") {
-          g.deleteProgram(c.scene.program);
-          g.deleteProgram(c.post.program);
-          if (c.tex) g.deleteTexture(c.tex);
-          if (c.fbo) g.deleteFramebuffer(c.fbo);
-        } else {
-          g.deleteProgram(c.sim.program);
-          g.deleteProgram(c.show.program);
-          c.texs.forEach((t) => g.deleteTexture(t));
-          c.fbos.forEach((f) => g.deleteFramebuffer(f));
-        }
+        g.deleteProgram(c.scene.program);
+        g.deleteProgram(c.post.program);
+        if (c.tex) g.deleteTexture(c.tex);
+        if (c.fbo) g.deleteFramebuffer(c.fbo);
       }
-      g.deleteShader(vs);
+      if (vs) g.deleteShader(vs);
       if (vao) g.deleteVertexArray(vao);
       g.getExtension("WEBGL_lose_context")?.loseContext();
     };
-    // The loop reads shader/hue from refs, so this effect runs once.
+    // The loop reads hue from refs, so this effect runs once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

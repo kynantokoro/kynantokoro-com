@@ -46,9 +46,6 @@ function ThemeSync() {
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  // TODO(review): lang is hardcoded "en" though the site serves en/ja — sync
-  // <html lang> to the active language for a11y/SEO. (Pre-existing, not from the
-  // shader background work.)
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

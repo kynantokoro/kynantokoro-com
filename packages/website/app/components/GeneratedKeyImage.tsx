@@ -127,10 +127,16 @@ export default function GeneratedKeyImage({ seed, className = "", containerSize 
     };
     if (img.complete) sample();
     else img.addEventListener('load', sample, { once: true });
-    // TODO(review): re-samples on any documentElement class change, not only
-    // dark toggles (shader-active / header-hydrating / data-theme also fire) —
-    // could guard on an actual dark-state transition.
-    const obs = new MutationObserver(sample);
+    // Re-sample only when the dark state actually flips — the documentElement
+    // also sees unrelated class mutations (shader-active, data-theme, …) that
+    // shouldn't trigger a recompute.
+    let wasDark = document.documentElement.classList.contains('dark');
+    const obs = new MutationObserver(() => {
+      const isDark = document.documentElement.classList.contains('dark');
+      if (isDark === wasDark) return;
+      wasDark = isDark;
+      sample();
+    });
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => {
       cancelled = true;
