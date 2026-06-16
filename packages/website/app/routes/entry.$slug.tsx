@@ -112,13 +112,14 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
             seed={entry.metadata.imageSeed}
             className="w-32 h-32 rounded-2xl"
             containerSize={128}
+            revealBg
           />
         </div>
 
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-baseline gap-3 mb-2">
-            <span className="text-xs text-gray-400 dark:text-gray-500 font-serif">
+            <span className="text-xs text-gray-400 dark:text-gray-400 font-serif">
               {new Date(entry.metadata.date).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US', {
                 year: 'numeric',
                 month: 'long',
@@ -169,7 +170,7 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
                 components={portableTextComponents}
               />
             ) : (
-              <p className="text-gray-600 dark:text-gray-400 font-serif">
+              <p className="text-gray-600 dark:text-gray-300 font-serif">
                 Unable to render content
               </p>
             )}

@@ -12,6 +12,8 @@ import { useEffect, useRef } from "react";
 
 import type { Route } from "./+types/root";
 import "./app.css";
+import { ShaderProvider } from "./contexts/shader-context";
+import ShaderBackground from "./components/ShaderBackground";
 
 // No loader needed - theme is managed client-side with localStorage
 
@@ -64,6 +66,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   document.documentElement.classList.add('dark');
                 }
                 document.documentElement.setAttribute('data-theme', theme);
+
+                // The shader wallpaper is always on; reveal it from first paint.
+                document.documentElement.classList.add('shader-active');
               })();
             `,
           }}
@@ -73,7 +78,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <ThemeSync />
-        {children}
+        <ShaderProvider>
+          <ShaderBackground />
+          {children}
+        </ShaderProvider>
         <ScrollRestoration
           getKey={(location) => {
             // Only restore scroll position for home pages (/en, /ja)
