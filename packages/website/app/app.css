@@ -29,8 +29,9 @@
      Resize Text) — the same approach GOV.UK uses. Do NOT pin these to px
      (`--font-size-*` is also the wrong namespace in Tailwind v4 and was a
      no-op). Body sizing / line-height is set per-element (see the article
-     wrapper and HomeHeader), following GOV.UK's 16px-mobile / 18px-desktop
-     body with a 1.5 line-height that survives 1.4.12 text-spacing overrides. */
+     wrapper and HomeHeader): 16px on mobile (GOV.UK's mobile body) and 20px
+     on desktop with a 1.5 line-height — matching accessibility-led sites like
+     The A11Y Project (20px / 1.5) and surviving 1.4.12 text-spacing overrides. */
 
   /* Pixel-art style border radius (jagged circles) */
   --radius-sm: 2px;
