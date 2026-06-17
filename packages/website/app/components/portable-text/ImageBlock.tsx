@@ -26,7 +26,13 @@ export default function ImageBlock({ value, projectId, dataset }: ImageBlockProp
   });
 
   const builder = imageUrlBuilder(client);
-  const imageUrl = builder.image(value).url();
+  // Serve Sanity images from our own origin (proxied in workers/app.ts). The
+  // site is cross-origin isolated (COEP: require-corp), which blocks direct
+  // cdn.sanity.io <img>s, so rewrite the CDN host to the same-origin proxy.
+  const cdnUrl = builder.image(value).url();
+  const imageUrl = cdnUrl.startsWith('https://cdn.sanity.io/')
+    ? '/sanity-image/' + cdnUrl.slice('https://cdn.sanity.io/'.length)
+    : cdnUrl;
 
   return (
     <figure className="my-8">
