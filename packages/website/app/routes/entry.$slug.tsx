@@ -163,7 +163,7 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
 
         {/* Content */}
         {entry.content[language] && entry.content[language].length > 0 ? (
-          <div lang={language} className="max-w-none">
+          <div lang={language} className="max-w-none text-base sm:text-lg leading-normal break-words">
             {portableTextComponents ? (
               <PortableText
                 value={entry.content[language]}
