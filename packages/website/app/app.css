@@ -24,17 +24,14 @@
   --font-sans: "BigBlue TerminalPlus", "PixelMplus12", ui-monospace, monospace;
   --font-serif: "BigBlue TerminalPlus", "PixelMplus12", ui-monospace, monospace;
 
-  /* Pixel-perfect font sizes (12px base, multiples only) */
-  --font-size-xs: 12px;    /* 1x */
-  --font-size-sm: 12px;    /* 1x */
-  --font-size-base: 12px;  /* 1x */
-  --font-size-lg: 24px;    /* 2x */
-  --font-size-xl: 24px;    /* 2x */
-  --font-size-2xl: 24px;   /* 2x */
-  --font-size-3xl: 36px;   /* 3x */
-  --font-size-4xl: 48px;   /* 4x */
-  --font-size-5xl: 60px;   /* 5x */
-  --font-size-6xl: 72px;   /* 6x */
+  /* Type scale: we intentionally keep Tailwind's default *rem-based* scale so
+     font sizes scale with the user's browser font-size setting (WCAG 1.4.4
+     Resize Text) — the same approach GOV.UK uses. Do NOT pin these to px
+     (`--font-size-*` is also the wrong namespace in Tailwind v4 and was a
+     no-op). Body sizing / line-height is set per-element (see the article
+     wrapper and HomeHeader): 16px on mobile (GOV.UK's mobile body) and 20px
+     on desktop with a 1.5 line-height — matching accessibility-led sites like
+     The A11Y Project (20px / 1.5) and surviving 1.4.12 text-spacing overrides. */
 
   /* Pixel-art style border radius (jagged circles) */
   --radius-sm: 2px;
