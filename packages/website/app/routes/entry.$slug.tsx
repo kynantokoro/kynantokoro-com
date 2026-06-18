@@ -7,6 +7,7 @@ import { getEmojiColor } from '../lib/emojiColors';
 import { PortableText } from '@portabletext/react';
 import { createPortableTextComponents } from '../components/portable-text/portableTextComponents';
 import GeneratedKeyImage from '../components/GeneratedKeyImage';
+import FeedbackLink from '../components/FeedbackLink';
 import { blogPostingLd } from '../lib/jsonLd';
 import type { TagEntry } from '../lib/tags';
 import { buildTagSearch } from '../lib/tagFilter';
@@ -101,6 +102,9 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
     ? createPortableTextComponents(projectId, dataset)
     : undefined;
 
+  const hasContent =
+    entry.content[language] && entry.content[language].length > 0;
+
   return (
     <div className="min-h-screen">
       <Header showBackButton />
@@ -162,7 +166,7 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
         )}
 
         {/* Content */}
-        {entry.content[language] && entry.content[language].length > 0 ? (
+        {hasContent ? (
           <div lang={language} className="max-w-none text-base sm:text-xl leading-normal break-words">
             {portableTextComponents ? (
               <PortableText
@@ -183,6 +187,11 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
                 : 'This content has not been created yet.'}
             </p>
           </div>
+        )}
+
+        {/* Reader feedback */}
+        {hasContent && (
+          <FeedbackLink title={displayTitle} slug={entry.slug} />
         )}
       </div>
     </div>
