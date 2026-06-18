@@ -40,7 +40,7 @@ export function createPortableTextComponents(
       </blockquote>
     ),
     normal: ({ children }) => (
-      <p className="mb-4 leading-relaxed text-gray-800 dark:text-gray-200 font-serif">
+      <p className="mb-4 text-gray-800 dark:text-gray-200 font-serif">
         {children}
       </p>
     ),

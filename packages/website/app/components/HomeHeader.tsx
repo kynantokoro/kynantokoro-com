@@ -100,7 +100,7 @@ export default function HomeHeader({ hueRotate }: HomeHeaderProps) {
           <h1 className="text-2xl font-serif font-semibold text-gray-900 dark:text-gray-100 mb-2">
             {currentProfile.name}
           </h1>
-          <p className="text-base font-serif text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
+          <p className="text-base font-serif text-gray-700 dark:text-gray-300 mb-4">
             {currentProfile.description}
           </p>
 
