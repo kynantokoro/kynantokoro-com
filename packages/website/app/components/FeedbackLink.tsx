@@ -28,7 +28,7 @@ export default function FeedbackLink({ title, slug }: FeedbackLinkProps) {
   const mailtoHref = `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
   return (
-    <div className="mt-12 pt-6 border-t border-gray-200 dark:border-gray-800">
+    <div className="mt-12 pt-6 border-t border-gray-200 dark:border-gray-800 text-center">
       <a
         href={mailtoHref}
         className="focus-invert inline-flex items-center gap-2 text-sm font-serif text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
