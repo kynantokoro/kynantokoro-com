@@ -7,7 +7,7 @@ import { getEmojiColor } from '../lib/emojiColors';
 import { PortableText } from '@portabletext/react';
 import { createPortableTextComponents } from '../components/portable-text/portableTextComponents';
 import GeneratedKeyImage from '../components/GeneratedKeyImage';
-import FeedbackButton from '../components/FeedbackButton';
+import FeedbackLink from '../components/FeedbackLink';
 import { blogPostingLd } from '../lib/jsonLd';
 import type { TagEntry } from '../lib/tags';
 import { buildTagSearch } from '../lib/tagFilter';
@@ -191,7 +191,7 @@ export default function EntryPage({ loaderData }: Route.ComponentProps) {
 
         {/* Reader feedback */}
         {hasContent && (
-          <FeedbackButton title={displayTitle} slug={entry.slug} />
+          <FeedbackLink title={displayTitle} slug={entry.slug} />
         )}
       </div>
     </div>

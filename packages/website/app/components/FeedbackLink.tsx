@@ -2,7 +2,7 @@ import { useLanguage } from '../contexts/language-context';
 
 const FEEDBACK_EMAIL = 'hello@kynantokoro.com';
 
-interface FeedbackButtonProps {
+interface FeedbackLinkProps {
   /** Article title, used to prefill the email subject. */
   title: string;
   /** Article slug, used to build the canonical URL referenced in the email body. */
@@ -10,11 +10,12 @@ interface FeedbackButtonProps {
 }
 
 /**
- * A small "send your thoughts by email" prompt shown at the bottom of an entry.
- * It is a plain mailto: link — pressing it opens the reader's mail client with the
- * subject and a reference to the article prefilled, so they can just write and send.
+ * A small "send feedback by email" link shown at the bottom of an entry.
+ * It is a plain mailto: link — opening it launches the reader's mail client with
+ * the subject and a reference to the article prefilled, so they can just write
+ * and send. Styled to match the social links in the home header.
  */
-export default function FeedbackButton({ title, slug }: FeedbackButtonProps) {
+export default function FeedbackLink({ title, slug }: FeedbackLinkProps) {
   const { language } = useLanguage();
 
   const pageUrl = `https://kynantokoro.com/${language}/entry/${slug}`;
@@ -27,17 +28,12 @@ export default function FeedbackButton({ title, slug }: FeedbackButtonProps) {
   const mailtoHref = `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
   return (
-    <div className="mt-16 pt-8 border-t border-gray-200 dark:border-gray-800 text-center">
-      <p className="text-base font-serif text-gray-700 dark:text-gray-300 mb-4">
-        {language === 'ja'
-          ? '読んでいただきありがとうございます。感想をいただけると嬉しいです。'
-          : 'Thanks for reading. I’d love to hear what you thought.'}
-      </p>
+    <div className="mt-12 pt-6 border-t border-gray-200 dark:border-gray-800">
       <a
         href={mailtoHref}
-        className="focus-invert inline-flex items-center gap-2 text-sm font-serif text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 px-5 py-2.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+        className="focus-invert inline-flex items-center gap-2 text-sm font-serif text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
